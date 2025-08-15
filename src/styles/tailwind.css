@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core Colors */
+    --color-background: #FAFBFC; /* gray-50 */
+    --color-foreground: #1A202C; /* gray-900 */
+    --color-border: #E2E8F0; /* gray-200 */
+    --color-input: #FFFFFF; /* white */
+    --color-ring: #003366; /* navy-blue */
+    
+    /* Card Colors */
+    --color-card: #FFFFFF; /* white */
+    --color-card-foreground: #1A202C; /* gray-900 */
+    
+    /* Popover Colors */
+    --color-popover: #FFFFFF; /* white */
+    --color-popover-foreground: #1A202C; /* gray-900 */
+    
+    /* Muted Colors */
+    --color-muted: #F7FAFC; /* gray-50 */
+    --color-muted-foreground: #4A5568; /* gray-600 */
+    
+    /* Primary Colors */
+    --color-primary: #003366; /* navy-blue */
+    --color-primary-foreground: #FFFFFF; /* white */
+    
+    /* Secondary Colors */
+    --color-secondary: #4A90A4; /* blue-gray-500 */
+    --color-secondary-foreground: #FFFFFF; /* white */
+    
+    /* Destructive Colors */
+    --color-destructive: #E53E3E; /* red-600 */
+    --color-destructive-foreground: #FFFFFF; /* white */
+    
+    /* Accent Colors */
+    --color-accent: #E8B931; /* yellow-500 */
+    --color-accent-foreground: #1A202C; /* gray-900 */
+    
+    /* Success Colors */
+    --color-success: #38A169; /* green-600 */
+    --color-success-foreground: #FFFFFF; /* white */
+    
+    /* Warning Colors */
+    --color-warning: #D69E2E; /* yellow-600 */
+    --color-warning-foreground: #1A202C; /* gray-900 */
+    
+    /* Error Colors */
+    --color-error: #E53E3E; /* red-600 */
+    --color-error-foreground: #FFFFFF; /* white */
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .shadow-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .shadow-modal {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .transition-micro {
+    transition: all 0.15s ease-out;
+  }
+  
+  .transition-layout {
+    transition: all 0.3s ease-out;
+  }
+  
+  .transition-fade {
+    transition: opacity 0.2s ease-out;
+  }
+}
