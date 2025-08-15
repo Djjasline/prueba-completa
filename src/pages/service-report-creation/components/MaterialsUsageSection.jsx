@@ -15,8 +15,8 @@ const MaterialsUsageSection = ({
       quantity: '',
       materialName: '',
       materialCode: '',
-      unitPrice: '',
-      totalPrice: ''
+      unitPrice: '',     // lo dejamos por compatibilidad, aunque ya no se muestra
+      totalPrice: ''     // idem
     };
     updateFormData('materialsUsage', [...formData?.materialsUsage, newMaterial]);
   };
@@ -30,7 +30,7 @@ const MaterialsUsageSection = ({
       if (material?.id === id) {
         const updated = { ...material, [field]: value };
         
-        // Auto-calculate total price when quantity or unit price changes
+        // Se mantiene la lógica por si en el futuro vuelves a usar precios
         if (field === 'quantity' || field === 'unitPrice') {
           const quantity = parseFloat(field === 'quantity' ? value : updated?.quantity) || 0;
           const unitPrice = parseFloat(field === 'unitPrice' ? value : updated?.unitPrice) || 0;
@@ -44,6 +44,7 @@ const MaterialsUsageSection = ({
     updateFormData('materialsUsage', updatedMaterials);
   };
 
+  // Ya no se usa en la UI, pero se conserva por compatibilidad
   const getTotalCost = () => {
     return formData?.materialsUsage?.reduce((total, material) => {
       return total + (parseFloat(material?.totalPrice) || 0);
@@ -114,12 +115,6 @@ const MaterialsUsageSection = ({
                         <th className="px-4 py-3 text-left text-sm font-medium text-foreground border-b border-border">
                           Código
                         </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-foreground border-b border-border">
-                          Precio Unitario
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-foreground border-b border-border">
-                          Total
-                        </th>
                         <th className="px-4 py-3 text-center text-sm font-medium text-foreground border-b border-border w-20">
                           Acciones
                         </th>
@@ -157,22 +152,6 @@ const MaterialsUsageSection = ({
                               className="border-0 bg-transparent p-0 focus:ring-0"
                             />
                           </td>
-                          <td className="px-4 py-3 border-b border-border">
-                            <Input
-                              type="number"
-                              placeholder="0.00"
-                              value={material?.unitPrice}
-                              onChange={(e) => updateMaterial(material?.id, 'unitPrice', e?.target?.value)}
-                              className="border-0 bg-transparent p-0 focus:ring-0 w-24"
-                              min="0"
-                              step="0.01"
-                            />
-                          </td>
-                          <td className="px-4 py-3 border-b border-border">
-                            <span className="text-sm font-medium text-foreground">
-                              ${material?.totalPrice || '0.00'}
-                            </span>
-                          </td>
                           <td className="px-4 py-3 border-b border-border text-center">
                             <Button
                               variant="ghost"
@@ -187,15 +166,8 @@ const MaterialsUsageSection = ({
                     </tbody>
                   </table>
                 </div>
-                
-                <div className="flex justify-end mt-4 p-4 bg-muted rounded-lg">
-                  <div className="text-right">
-                    <span className="text-sm text-muted-foreground">Costo Total de Materiales:</span>
-                    <div className="text-lg font-semibold text-foreground">
-                      ${getTotalCost()}
-                    </div>
-                  </div>
-                </div>
+
+                {/* Se eliminó el bloque de "Costo Total de Materiales" */}
               </>
             )}
           </div>
