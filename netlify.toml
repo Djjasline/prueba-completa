@@ -1,4 +1,10 @@
 [build]
   command = "npm run build"
-  publish = "dist"
+  publish = "build"
 
+# 👇 Necesario si usas react-router-dom (SPA), para que todas las rutas
+# se redirijan al index.html en Netlify
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
