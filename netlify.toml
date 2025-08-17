@@ -2,8 +2,10 @@
   command = "npm run build"
   publish = "build"
 
-# 👇 Necesario si usas react-router-dom (SPA), para que todas las rutas
-# se redirijan al index.html en Netlify
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
