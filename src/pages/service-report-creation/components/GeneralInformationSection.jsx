@@ -2,8 +2,8 @@ import React from 'react';
 import Input from '../../../components/ui/Input';
 import Icon from '../../../components/AppIcon';
 
-// IMPORTA LA LISTA DE TÉCNICOS
-import { TECHNICIANS, findTechnicianByName } from '../../../data/technicians';
+// Lista y buscador de técnicos
+import { TECHNICIANS, findTechnician } from '../../../data/technicians';
 
 const GeneralInformationSection = ({ 
   formData, 
@@ -13,6 +13,14 @@ const GeneralInformationSection = ({
 }) => {
   const handleInputChange = (field, value) => {
     updateFormData('generalInfo', { ...formData?.generalInfo, [field]: value });
+  };
+
+  // sincronia con bloque de responsables → técnico ASTAP
+  const setResponsibleAstap = (patch) => {
+    updateFormData('responsibles', {
+      ...(formData?.responsibles || {}),
+      astap: { ...(formData?.responsibles?.astap || {}), ...patch }
+    });
   };
 
   return (
@@ -87,7 +95,7 @@ const GeneralInformationSection = ({
               onChange={(e) => handleInputChange('reference', e?.target?.value)}
             />
 
-            {/* PERSONAL TÉCNICO con AUTOCOMPLETADO */}
+            {/* PERSONAL TÉCNICO con AUTOCOMPLETADO (input nativo para que funcione <datalist>) */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-foreground mb-1">
                 Personal Técnico <span className="text-destructive">*</span>
@@ -101,14 +109,26 @@ const GeneralInformationSection = ({
                   const name = e.target.value;
                   handleInputChange('technicalPersonnel', name);
 
-                  // Si coincide con uno de la lista, autocompleta teléfono y correo
-                  const t = findTechnicianByName(name);
+                  const t = findTechnician(name); // acepta parciales
                   if (t) {
                     handleInputChange('technicalPhone', t.phone);
                     handleInputChange('technicalEmail', t.email);
+
+                    // sincroniza también con el bloque de Responsables → Técnico ASTAP
+                    setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
+                  }
+                }}
+                onBlur={(e) => {
+                  const t = findTechnician(e.target.value);
+                  if (t) {
+                    handleInputChange('technicalPersonnel', t.name);
+                    handleInputChange('technicalPhone', t.phone);
+                    handleInputChange('technicalEmail', t.email);
+                    setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
                   }
                 }}
                 list="tech-list"
+                autoComplete="off"
                 required
               />
 
@@ -122,11 +142,11 @@ const GeneralInformationSection = ({
               </datalist>
             </div>
 
-            {/* TELÉFONO DEL TÉCNICO (se autocompleta, pero queda editable) */}
+            {/* TELÉFONO DEL TÉCNICO (se autocompleta, editable) */}
             <Input
               label="Teléfono del Técnico"
               type="tel"
-              placeholder="0990000000"
+              placeholder="0998511717"
               value={formData?.generalInfo?.technicalPhone || ''}
               onChange={(e) => handleInputChange('technicalPhone', e?.target?.value)}
             />
@@ -135,7 +155,7 @@ const GeneralInformationSection = ({
             <Input
               label="Correo del Técnico"
               type="email"
-              placeholder="correo@astap.com"
+              placeholder="smaviles@astap.com"
               value={formData?.generalInfo?.technicalEmail || ''}
               onChange={(e) => handleInputChange('technicalEmail', e?.target?.value)}
             />
