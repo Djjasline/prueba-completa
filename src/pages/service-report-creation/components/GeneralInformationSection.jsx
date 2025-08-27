@@ -13,7 +13,7 @@ const GeneralInformationSection = ({
     updateFormData('generalInfo', { ...formData?.generalInfo, [field]: value });
   };
 
-  // 🔄 sincr. con Partes responsables → Técnico ASTAP
+  // 🔄 Sincroniza con "Partes responsables → Técnico ASTAP"
   const setResponsibleAstap = (patch) => {
     updateFormData('responsibleParties', {
       ...(formData?.responsibleParties || {}),
@@ -93,7 +93,7 @@ const GeneralInformationSection = ({
               onChange={(e) => handleInputChange('reference', e?.target?.value)}
             />
 
-            {/* Personal Técnico con datalist */}
+            {/* Personal Técnico con datalist y normalización del nombre */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-foreground mb-1">
                 Personal Técnico <span className="text-destructive">*</span>
@@ -103,16 +103,33 @@ const GeneralInformationSection = ({
                 type="text"
                 placeholder="Nombre del técnico asignado"
                 value={formData?.generalInfo?.technicalPersonnel || ''}
-                onChange={(e) => {
+                // Algunos navegadores disparan onInput al seleccionar del datalist
+                onInput={(e) => {
                   const name = e.target.value;
-                  handleInputChange('technicalPersonnel', name);
-
                   const t = findTechnician(name);
+
                   if (t) {
+                    // Forzar nombre final y sincronizar todo
+                    handleInputChange('technicalPersonnel', t.name);
                     handleInputChange('technicalPhone', t.phone);
                     handleInputChange('technicalEmail', t.email);
-                    // sincroniza con “Partes responsables → Técnico ASTAP”
                     setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
+                  } else {
+                    // Si aún no hay match, guardar lo que escribe el usuario
+                    handleInputChange('technicalPersonnel', name);
+                  }
+                }}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  const t = findTechnician(name);
+
+                  if (t) {
+                    handleInputChange('technicalPersonnel', t.name);
+                    handleInputChange('technicalPhone', t.phone);
+                    handleInputChange('technicalEmail', t.email);
+                    setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
+                  } else {
+                    handleInputChange('technicalPersonnel', name);
                   }
                 }}
                 onBlur={(e) => {
