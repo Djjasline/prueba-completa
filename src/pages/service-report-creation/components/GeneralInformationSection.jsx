@@ -1,8 +1,6 @@
 import React from 'react';
 import Input from '../../../components/ui/Input';
 import Icon from '../../../components/AppIcon';
-
-// Lista y buscador de técnicos
 import { TECHNICIANS, findTechnician } from '../../../data/technicians';
 
 const GeneralInformationSection = ({ 
@@ -15,11 +13,11 @@ const GeneralInformationSection = ({
     updateFormData('generalInfo', { ...formData?.generalInfo, [field]: value });
   };
 
-  // sincronia con bloque de responsables → técnico ASTAP
+  // 🔄 sincr. con Partes responsables → Técnico ASTAP
   const setResponsibleAstap = (patch) => {
-    updateFormData('responsibles', {
-      ...(formData?.responsibles || {}),
-      astap: { ...(formData?.responsibles?.astap || {}), ...patch }
+    updateFormData('responsibleParties', {
+      ...(formData?.responsibleParties || {}),
+      astap: { ...(formData?.responsibleParties?.astap || {}), ...patch },
     });
   };
 
@@ -95,7 +93,7 @@ const GeneralInformationSection = ({
               onChange={(e) => handleInputChange('reference', e?.target?.value)}
             />
 
-            {/* PERSONAL TÉCNICO con AUTOCOMPLETADO (input nativo para que funcione <datalist>) */}
+            {/* Personal Técnico con datalist */}
             <div className="flex flex-col">
               <label className="text-sm font-medium text-foreground mb-1">
                 Personal Técnico <span className="text-destructive">*</span>
@@ -109,12 +107,11 @@ const GeneralInformationSection = ({
                   const name = e.target.value;
                   handleInputChange('technicalPersonnel', name);
 
-                  const t = findTechnician(name); // acepta parciales
+                  const t = findTechnician(name);
                   if (t) {
                     handleInputChange('technicalPhone', t.phone);
                     handleInputChange('technicalEmail', t.email);
-
-                    // sincroniza también con el bloque de Responsables → Técnico ASTAP
+                    // sincroniza con “Partes responsables → Técnico ASTAP”
                     setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
                   }
                 }}
@@ -131,8 +128,6 @@ const GeneralInformationSection = ({
                 autoComplete="off"
                 required
               />
-
-              {/* SUGERENCIAS */}
               <datalist id="tech-list">
                 {TECHNICIANS.map((t) => (
                   <option key={t.name} value={t.name}>
@@ -142,7 +137,6 @@ const GeneralInformationSection = ({
               </datalist>
             </div>
 
-            {/* TELÉFONO DEL TÉCNICO (se autocompleta, editable) */}
             <Input
               label="Teléfono del Técnico"
               type="tel"
@@ -151,7 +145,6 @@ const GeneralInformationSection = ({
               onChange={(e) => handleInputChange('technicalPhone', e?.target?.value)}
             />
 
-            {/* CORREO DEL TÉCNICO */}
             <Input
               label="Correo del Técnico"
               type="email"
