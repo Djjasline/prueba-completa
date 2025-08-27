@@ -66,32 +66,14 @@ const Input = React.forwardRef(({
             )}
 
             <input
-                type={type}
-                className={cn(
-                    baseInputClasses,
-                    error && "border-destructive focus-visible:ring-destructive",
-                    className
-                )}
-                ref={ref}
-                id={inputId}
-                {...props}
-            />
-
-            {description && !error && (
-                <p className="text-sm text-muted-foreground">
-                    {description}
-                </p>
-            )}
-
-            {error && (
-                <p className="text-sm text-destructive">
-                    {error}
-                </p>
-            )}
-        </div>
-    );
-});
-
-Input.displayName = "Input";
-
-export default Input;
+  type={type}
+  className={cn(
+    baseInputClasses,
+    error && "border-destructive focus-visible:ring-destructive",
+    className
+  )}
+  style={{ color: "var(--foreground, #111827)" }} // fallback para que siempre se vea el texto
+  ref={ref}
+  id={inputId}
+  {...props}
+/>
