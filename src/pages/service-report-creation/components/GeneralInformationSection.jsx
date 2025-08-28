@@ -15,10 +15,35 @@ const GeneralInformationSection = ({
 
   // 🔄 Sincroniza con "Partes responsables → Técnico ASTAP"
   const setResponsibleAstap = (patch) => {
+    const current = formData?.responsibleParties || {};
     updateFormData('responsibleParties', {
-      ...(formData?.responsibleParties || {}),
-      astap: { ...(formData?.responsibleParties?.astap || {}), ...patch },
+      ...current,
+      astap: { ...(current.astap || {}), ...patch },
     });
+  };
+
+  // ✅ ACTUALIZA TODO EN UNA SOLA LLAMADA para evitar que se pisen updates
+  const applyTechnician = (name) => {
+    const t = findTechnician(name);
+    if (t) {
+      const gi = formData?.generalInfo || {};
+      // 1 sola actualización para generalInfo
+      updateFormData('generalInfo', {
+        ...gi,
+        technicalPersonnel: t.name,
+        technicalPhone: t.phone,
+        technicalEmail: t.email,
+      });
+      // 1 sola actualización para responsables
+      setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
+      return true;
+    }
+    // sin match: solo escribimos lo que el usuario teclea en el nombre
+    updateFormData('generalInfo', {
+      ...(formData?.generalInfo || {}),
+      technicalPersonnel: name,
+    });
+    return false;
   };
 
   return (
@@ -99,48 +124,13 @@ const GeneralInformationSection = ({
                 Personal Técnico <span className="text-destructive">*</span>
               </label>
               <input
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary"
+                style={{ color: 'var(--foreground, #111827)' }}
                 type="text"
                 placeholder="Nombre del técnico asignado"
                 value={formData?.generalInfo?.technicalPersonnel || ''}
-                // Algunos navegadores disparan onInput al seleccionar del datalist
-                onInput={(e) => {
-                  const name = e.target.value;
-                  const t = findTechnician(name);
-
-                  if (t) {
-                    // Forzar nombre final y sincronizar todo
-                    handleInputChange('technicalPersonnel', t.name);
-                    handleInputChange('technicalPhone', t.phone);
-                    handleInputChange('technicalEmail', t.email);
-                    setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
-                  } else {
-                    // Si aún no hay match, guardar lo que escribe el usuario
-                    handleInputChange('technicalPersonnel', name);
-                  }
-                }}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  const t = findTechnician(name);
-
-                  if (t) {
-                    handleInputChange('technicalPersonnel', t.name);
-                    handleInputChange('technicalPhone', t.phone);
-                    handleInputChange('technicalEmail', t.email);
-                    setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
-                  } else {
-                    handleInputChange('technicalPersonnel', name);
-                  }
-                }}
-                onBlur={(e) => {
-                  const t = findTechnician(e.target.value);
-                  if (t) {
-                    handleInputChange('technicalPersonnel', t.name);
-                    handleInputChange('technicalPhone', t.phone);
-                    handleInputChange('technicalEmail', t.email);
-                    setResponsibleAstap({ name: t.name, phone: t.phone, email: t.email });
-                  }
-                }}
+                onChange={(e) => applyTechnician(e.target.value)}
+                onBlur={(e) => applyTechnician(e.target.value)}
                 list="tech-list"
                 autoComplete="off"
                 required
