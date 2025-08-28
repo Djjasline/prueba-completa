@@ -1,130 +1,364 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Header from '../../components/ui/Header';
+import WorkflowProgress from '../../components/ui/WorkflowProgress';
+import ContextualActionBar from '../../components/ui/ContextualActionBar';
+import GeneralInformationSection from './components/GeneralInformationSection';
+import DynamicTestingTable from './components/DynamicTestingTable';
+import ActivitiesIncidentsSection from './components/ActivitiesIncidentsSection';
+import MaterialsUsageSection from './components/MaterialsUsageSection';
+import EquipmentDetailsSection from './components/EquipmentDetailsSection';
+import ResponsiblePartiesSection from './components/ResponsiblePartiesSection';
+import DigitalSignatureSection from './components/DigitalSignatureSection';
 import Icon from '../../components/AppIcon';
 
-const PdfReportPreview = () => {
-  const location = useLocation();
+const ServiceReportCreation = () => {
   const navigate = useNavigate();
-  const containerRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState({
+    generalInfo: false,
+    beforeTesting: false,
+    activitiesIncidents: false,
+    afterTesting: false,
+    materialsUsage: false,
+    equipmentDetails: false,
+    responsibleParties: false,
+    digitalSignatures: false
+  });
 
-  // 1) Intenta tomar del navigate (state) y si no, del localStorage
-  const reportData = useMemo(() => {
-    if (location.state?.reportData) return location.state.reportData;
-    try {
-      const raw = localStorage.getItem('astap-report-for-pdf'); // fallback que guardamos antes
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
+  const [formData, setFormData] = useState({
+    generalInfo: {
+      client: '',
+      internalCode: '',
+      serviceDate: new Date().toISOString().split('T')[0],
+      address: '',
+      reference: '',
+      technicalPersonnel: ''
+    },
+    beforeTesting: [],
+    activitiesIncidents: {
+      activitiesDescription: '',
+      activitiesEvidenceUrl: '',
+      activitiesEvidenceImages: [],
+      incidentsDescription: '',
+      incidentsEvidenceUrl: '',
+      incidentsEvidenceImages: []
+    },
+    afterTesting: [],
+    materialsUsage: [],
+    equipmentDetails: {
+      type: '',
+      brand: '',
+      model: '',
+      serialNumber: '',
+      year: '',
+      vinChassis: '',
+      plateNumber: '',
+      workHours: '',
+      mileage: '',
+      panoramicImage: ''
+    },
+    responsibleParties: {
+      astap: {
+        name: '',
+        position: '',
+        phone: '',
+        email: ''
+      },
+      client: {
+        name: '',
+        position: '',
+        phone: '',
+        email: ''
+      }
+    },
+    digitalSignatures: {
+      astap: null,
+      client: null
     }
-  }, [location.state]);
+  });
 
-  // 2) Estado para habilitar el botón cuando tengamos datos
-  const [ready, setReady] = useState(false);
-
+  // Load saved data from localStorage on component mount
   useEffect(() => {
-    // Consideramos “lista” la vista cuando tenemos datos mínimos
-    if (reportData?.generalInfo?.client && reportData?.generalInfo?.serviceDate) {
-      setReady(true);
-    } else {
-      setReady(false);
+    const savedData = localStorage.getItem('astap-current-report');
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        setFormData(parsedData);
+      } catch (error) {
+        console.error('Error loading saved report data:', error);
+      }
     }
-  }, [reportData]);
+  }, []);
 
-  const handleDownloadPdf = async () => {
-    if (!ready || !reportData) return;
-    // Aquí puedes implementar html2canvas + jsPDF.
-    // Por ahora, solo simulamos la descarga:
+  // Auto-save to localStorage whenever formData changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      localStorage.setItem('astap-current-report', JSON.stringify(formData));
+    }, 1000); // Debounce for 1 second
+
+    return () => clearTimeout(timeoutId);
+  }, [formData]);
+
+  const updateFormData = (section, data) => {
+    setFormData(prev => ({
+      ...prev,
+      [section]: data
+    }));
+  };
+
+  const toggleSection = (sectionKey) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
+
+  const validateForm = () => {
+    const errors = [];
+    
+    // Validate general information
+    if (!formData.generalInfo.client.trim()) errors.push('Cliente es requerido');
+    if (!formData.generalInfo.internalCode.trim()) errors.push('Código interno es requerido');
+    if (!formData.generalInfo.serviceDate) errors.push('Fecha de servicio es requerida');
+    if (!formData.generalInfo.address.trim()) errors.push('Dirección es requerida');
+    if (!formData.generalInfo.technicalPersonnel.trim()) errors.push('Personal técnico es requerido');
+    
+    // Validate equipment details
+    if (!formData.equipmentDetails.type.trim()) errors.push('Tipo de equipo es requerido');
+    if (!formData.equipmentDetails.brand.trim()) errors.push('Marca del equipo es requerida');
+    if (!formData.equipmentDetails.model.trim()) errors.push('Modelo del equipo es requerido');
+    if (!formData.equipmentDetails.serialNumber.trim()) errors.push('Número de serie es requerido');
+    
+    // Validate responsible parties
+    if (!formData.responsibleParties.astap.name.trim()) errors.push('Nombre del técnico ASTAP es requerido');
+    if (!formData.responsibleParties.astap.position.trim()) errors.push('Cargo del técnico ASTAP es requerido');
+    if (!formData.responsibleParties.astap.phone.trim()) errors.push('Teléfono del técnico ASTAP es requerido');
+    if (!formData.responsibleParties.client.name.trim()) errors.push('Nombre del representante del cliente es requerido');
+    if (!formData.responsibleParties.client.position.trim()) errors.push('Cargo del representante del cliente es requerido');
+    if (!formData.responsibleParties.client.phone.trim()) errors.push('Teléfono del representante del cliente es requerido');
+    
+    return errors;
+  };
+
+  const handleSaveDraft = async () => {
+    setIsLoading(true);
+    
     try {
-      // Simular render/generación
-      await new Promise((r) => setTimeout(r, 500));
-      alert('PDF generado (simulación). Integra html2canvas + jsPDF aquí.');
-    } catch (e) {
-      console.error(e);
-      alert('No se pudo generar el PDF.');
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Save to localStorage with timestamp
+      const draftData = {
+        ...formData,
+        savedAt: new Date().toISOString(),
+        status: 'draft'
+      };
+      
+      localStorage.setItem(`astap-draft-${Date.now()}`, JSON.stringify(draftData));
+      
+      // Show success message (in a real app, you'd use a toast notification)
+      alert('Borrador guardado exitosamente');
+      
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert('Error al guardar el borrador');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const missing = !reportData;
+  const handleGeneratePDF = async () => {
+    const validationErrors = validateForm();
+    
+    if (validationErrors.length > 0) {
+      alert(`Por favor complete los siguientes campos:\n\n${validationErrors.join('\n')}`);
+      return;
+    }
+    
+    if (!formData.digitalSignatures.astap || !formData.digitalSignatures.client) {
+      alert('Se requieren ambas firmas digitales para generar el PDF');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Simulate PDF generation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // In a real implementation, you would use html2canvas and jsPDF here
+      // For now, we'll navigate to the PDF preview page 
+      navigate('/pdf-report-preview', { 
+        state: { reportData: formData } 
+      });
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error al generar el PDF');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendReport = async () => {
+    const validationErrors = validateForm();
+    
+    if (validationErrors.length > 0) {
+      alert(`Por favor complete los siguientes campos:\n\n${validationErrors.join('\n')}`);
+      return;
+    }
+    
+    if (!formData.digitalSignatures.astap || !formData.digitalSignatures.client) {
+      alert('Se requieren ambas firmas digitales para enviar el reporte');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      // Simulate email sending
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Navigate to email integration interface
+      navigate('/email-integration-interface', { 
+        state: { reportData: formData } 
+      });
+      
+    } catch (error) {
+      console.error('Error sending report:', error);
+      alert('Error al enviar el reporte');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const contextualActions = [
+    {
+      label: 'Guardar Borrador',
+      variant: 'outline',
+      icon: 'Save',
+      onClick: handleSaveDraft,
+      loading: isLoading
+    },
+    {
+      label: 'Generar PDF',
+      variant: 'secondary',
+      icon: 'FileText',
+      onClick: handleGeneratePDF,
+      loading: isLoading
+    },
+    {
+      label: 'Enviar Reporte',
+      variant: 'default',
+      icon: 'Send',
+      onClick: handleSendReport,
+      loading: isLoading,
+      primary: true
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Cabecera simple */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <div className="flex items-center justify-center w-12 h-12 bg-primary rounded-lg">
-            <Icon name="Eye" size={24} className="text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Vista previa del informe</h1>
-            <p className="text-muted-foreground">
-              Revisar el documento antes de generar el PDF
-            </p>
-          </div>
-        </div>
-
-        {/* Tarjeta de “metadatos” a la derecha y preview */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Preview izquierda (2/3) */}
-          <div className="lg:col-span-2">
-            <div ref={containerRef} className="border border-border rounded-lg p-4 bg-card">
-              <div className="text-sm text-muted-foreground mb-2">
-                Página 1 de 3 (demo)
+      <Header />
+      
+      <main className="pt-15">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Page Header */}
+          <div className="mb-8">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-primary rounded-lg">
+                <Icon name="FileText" size={24} className="text-primary-foreground" />
               </div>
-
-              {/* Contenido simple para que veas Cliente y Fecha */}
-              <div className="rounded-md border border-border p-4">
-                <h2 className="font-semibold text-foreground mb-2">Vista previa del reporte</h2>
-                <p>Cliente: <span className="font-medium">{reportData?.generalInfo?.client || '---'}</span></p>
-                <p>Fecha: <span className="font-medium">{reportData?.generalInfo?.serviceDate || '---'}</span></p>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">
+                  Crear Reporte de Servicio
+                </h1>
+                <p className="text-muted-foreground">
+                  Complete la información del servicio técnico realizado
+                </p>
               </div>
             </div>
+            
+            {/* Workflow Progress */}
+            <WorkflowProgress currentStep={1} className="mb-6" />
           </div>
 
-          {/* Sidebar derecha (1/3) */}
-          <aside className="space-y-4">
-            <div className="bg-card border border-border rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Información</h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                <li><b>Cliente:</b> {reportData?.generalInfo?.client || '---'}</li>
-                <li><b>Tipo de informe:</b> Mantenimiento preventivo</li>
-                <li><b>Estado:</b> Pendiente de firma</li>
-                <li><b>Estimado:</b> 2.4 MB</li>
-                <li><b>Páginas:</b> 3</li>
-              </ul>
-            </div>
-          </aside>
+          {/* Form Sections */}
+          <div className="space-y-6 mb-24">
+            <GeneralInformationSection
+              formData={formData}
+              updateFormData={updateFormData}
+              isCollapsed={collapsedSections.generalInfo}
+              onToggleCollapse={() => toggleSection('generalInfo')}
+            />
+            
+            <DynamicTestingTable
+              title="Pruebas Antes del Servicio"
+              description="Parámetros medidos antes de iniciar el servicio"
+              icon="TestTube"
+              data={formData.beforeTesting}
+              onUpdateData={(data) => updateFormData('beforeTesting', data)}
+              isCollapsed={collapsedSections.beforeTesting}
+              onToggleCollapse={() => toggleSection('beforeTesting')}
+            />
+            
+            <ActivitiesIncidentsSection
+              formData={formData}
+              updateFormData={updateFormData}
+              isCollapsed={collapsedSections.activitiesIncidents}
+              onToggleCollapse={() => toggleSection('activitiesIncidents')}
+            />
+            
+            <DynamicTestingTable
+              title="Pruebas Después del Servicio"
+              description="Parámetros medidos después de completar el servicio"
+              icon="CheckCircle"
+              data={formData.afterTesting}
+              onUpdateData={(data) => updateFormData('afterTesting', data)}
+              isCollapsed={collapsedSections.afterTesting}
+              onToggleCollapse={() => toggleSection('afterTesting')}
+            />
+            
+            <MaterialsUsageSection
+              formData={formData}
+              updateFormData={updateFormData}
+              isCollapsed={collapsedSections.materialsUsage}
+              onToggleCollapse={() => toggleSection('materialsUsage')}
+            />
+            
+            <EquipmentDetailsSection
+              formData={formData}
+              updateFormData={updateFormData}
+              isCollapsed={collapsedSections.equipmentDetails}
+              onToggleCollapse={() => toggleSection('equipmentDetails')}
+            />
+            
+            <ResponsiblePartiesSection
+              formData={formData}
+              updateFormData={updateFormData}
+              isCollapsed={collapsedSections.responsibleParties}
+              onToggleCollapse={() => toggleSection('responsibleParties')}
+            />
+            
+            <DigitalSignatureSection
+              formData={formData}
+              updateFormData={updateFormData}
+              isCollapsed={collapsedSections.digitalSignatures}
+              onToggleCollapse={() => toggleSection('digitalSignatures')}
+            />
+          </div>
         </div>
+      </main>
 
-        {/* Barra inferior de acciones */}
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center px-4 py-2 rounded-md border border-input text-sm"
-          >
-            Volver
-          </button>
-
-          <button
-            onClick={handleDownloadPdf}
-            disabled={!ready || missing}
-            className={`inline-flex items-center px-4 py-2 rounded-md text-sm ${
-              !ready || missing
-                ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                : 'bg-secondary text-secondary-foreground hover:opacity-90'
-            }`}
-            title={
-              !ready || missing
-                ? 'Completa Cliente y Fecha en el informe, y vuelve a generar la vista previa.'
-                : 'Descargar PDF'
-            }
-          >
-            <Icon name="Download" size={16} className="mr-2" />
-            Descargar PDF
-          </button>
-        </div>
-      </div>
+      {/* Contextual Action Bar */}
+      <ContextualActionBar
+        actions={contextualActions}
+        position="sticky"
+        isLoading={isLoading}
+      />
     </div>
   );
 };
 
-export default PdfReportPreview;
+export default ServiceReportCreation
