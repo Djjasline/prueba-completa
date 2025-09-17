@@ -1,277 +1,183 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import Icon from '../../components/AppIcon';
-
-const formatDate = (isoLike) => {
-  if (!isoLike) return '---';
-  try {
-    // Espera formato YYYY-MM-DD
-    const [y, m, d] = isoLike.split('-');
-    return `${d}/${m}/${y}`;
-  } catch {
-    return isoLike;
-  }
-};
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 const PdfReportPreview = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [currentPage, setCurrentPage] = useState(1);
+  const captureRef = useRef(null);
 
-  // 1) Intentamos leer lo que llega desde ServiceReportCreation
-  const passedData = location?.state?.reportData;
+  // 1) Traemos el reporte desde state o desde localStorage
+  const report = useMemo(() => {
+    if (location.state?.reportData) return location.state.reportData;
 
-  // 2) Si no vino por state, lo intentamos desde localStorage
-  const fallbackData = useMemo(() => {
     try {
-      const raw = localStorage.getItem('astap-current-report');
+      const raw = localStorage.getItem("astap-current-report");
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [location.state]);
 
-  const reportData = passedData || fallbackData;
-
-  // Ref del contenedor que convertiremos a imagen para PDF
-  const previewRef = useRef(null);
-
-  // Si no hay data, regresamos a crear informe
+  // 2) Si no hay datos, devolvemos al formulario con aviso
   useEffect(() => {
-    if (!reportData) {
-      // No hay datos, volver a “Crear informe”
-      navigate('/service-report-creation', { replace: true });
+    if (!report) {
+      alert("No se encontró información del reporte. Vuelve a 'Crear informe'.");
+      navigate("/service-report-creation");
     }
-  }, [reportData, navigate]);
+  }, [report, navigate]);
 
-  // Datos que usamos en la UI
-  const clientName = reportData?.generalInfo?.client || '---';
-  const serviceDate = formatDate(reportData?.generalInfo?.serviceDate);
+  // Datos que deben verse en la caja grande
+  const client = report?.generalInfo?.client || "—";
+  const serviceDate = report?.generalInfo?.serviceDate || "—";
 
-  // Paginación simple de demo
-  const totalPages = 3;
-  const canPrev = currentPage > 1;
-  const canNext = currentPage < totalPages;
+  // Contenido “de muestra” para paginado (puedes cambiarlo por tu maquetado real)
+  const [page, setPage] = useState(0);
+  const pages = [
+    {
+      key: "p1",
+      title: "Vista previa del reporte",
+      content: (
+        <div className="space-y-2">
+          <p>
+            <strong>Cliente:</strong> {client}
+          </p>
+          <p>
+            <strong>Fecha:</strong> {serviceDate}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: "p2",
+      title: "Datos del equipo",
+      content: (
+        <div className="space-y-2">
+          <p>
+            <strong>Tipo:</strong> {report?.equipmentDetails?.type || "—"}
+          </p>
+          <p>
+            <strong>Marca:</strong> {report?.equipmentDetails?.brand || "—"}
+          </p>
+          <p>
+            <strong>Modelo:</strong> {report?.equipmentDetails?.model || "—"}
+          </p>
+          <p>
+            <strong>N° serie:</strong> {report?.equipmentDetails?.serialNumber || "—"}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: "p3",
+      title: "Responsables",
+      content: (
+        <div className="space-y-2">
+          <p className="font-semibold">Técnico ASTAP</p>
+          <p>
+            {report?.responsibleParties?.astap?.name || "—"} •{" "}
+            {report?.responsibleParties?.astap?.phone || "—"} •{" "}
+            {report?.responsibleParties?.astap?.email || "—"}
+          </p>
+          <p className="font-semibold mt-3">Representante del cliente</p>
+          <p>
+            {report?.responsibleParties?.client?.name || "—"} •{" "}
+            {report?.responsibleParties?.client?.phone || "—"} •{" "}
+            {report?.responsibleParties?.client?.email || "—"}
+          </p>
+        </div>
+      ),
+    },
+  ];
 
-  const goPrev = () => setCurrentPage((p) => (p > 1 ? p - 1 : p));
-  const goNext = () => setCurrentPage((p) => (p < totalPages ? p + 1 : p));
+  const prev = () => setPage((p) => Math.max(0, p - 1));
+  const next = () => setPage((p) => Math.min(pages.length - 1, p + 1));
 
-  // Descargar PDF (saca imagen del bloque #previewRef y la pega al PDF)
-  const handleDownloadPDF = async () => {
-    if (!previewRef.current) return;
-    const element = previewRef.current;
-
-    // html2canvas al bloque de preview
-    const canvas = await html2canvas(element, {
-      scale: 2, // mejor calidad
-      backgroundColor: '#ffffff',
+  // 3) Descargar PDF: captura el bloque visible (lo que está dentro de captureRef)
+  const handleDownloadPdf = async () => {
+    if (!captureRef.current) return;
+    const canvas = await html2canvas(captureRef.current, {
+      scale: 2,
       useCORS: true,
+      backgroundColor: "#ffffff",
     });
 
-    const imgData = canvas.toDataURL('image/png');
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = 210;
+    const pageHeight = 297;
 
-    // Tamaño A4 en pt -> 595 x 842 aprox
-    const pdf = new jsPDF('p', 'pt', 'a4');
-
-    // Calculamos tamaño proporcional de la imagen al ancho del PDF
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-
-    const imgWidth = pageWidth - 80; // margen 40pt a cada lado
+    // Ajustamos la imagen al ancho de A4 manteniendo proporción
+    const imgWidth = pageWidth - 20; // márgenes
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
-
-    // Nombre de archivo con fecha/hora
-    const now = new Date();
-    const fileName = `ASTAP_Reporte_${now.getFullYear()}${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(
-      now.getHours()
-    ).padStart(2, '0')}${String(now.getMinutes()).padStart(
-      2,
-      '0'
-    )}${String(now.getSeconds()).padStart(2, '0')}.pdf`;
-
-    pdf.save(fileName);
+    pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
+    pdf.save(`ASTAP_Reporte_${report?.generalInfo?.internalCode || "sin-codigo"}.pdf`);
   };
 
+  if (!report) return null;
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header simple */}
-      <header className="max-w-7xl mx-auto px-6 py-6">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center justify-center w-12 h-12 bg-primary rounded-lg">
-            <Icon name="Eye" size={24} className="text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Vista previa del informe</h1>
-            <p className="text-muted-foreground">
-              Revisar el documento antes de generar el PDF
-            </p>
-          </div>
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold text-foreground">Vista previa del informe</h1>
+        <div className="text-sm text-muted-foreground">
+          Página {page + 1} de {pages.length}
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-6 pb-28">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-          {/* Lado izquierdo: visor con paginación */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Página {currentPage} de {totalPages}
-              </p>
-              <div className="space-x-2">
-                <button
-                  onClick={goPrev}
-                  className="px-4 py-2 rounded-md border border-input text-sm disabled:opacity-50"
-                  disabled={!canPrev}
-                >
-                  Anterior
-                </button>
-                <button
-                  onClick={goNext}
-                  className="px-4 py-2 rounded-md border border-input text-sm disabled:opacity-50"
-                  disabled={!canNext}
-                >
-                  Próximo
-                </button>
-              </div>
-            </div>
+      {/* Contenedor CAPTURABLE */}
+      <div
+        ref={captureRef}
+        className="border border-border rounded-lg p-5 bg-white shadow-sm"
+      >
+        <h2 className="text-lg font-medium text-foreground mb-3">
+          {pages[page].title}
+        </h2>
+        {pages[page].content}
+      </div>
 
-            {/* BOX que se captura para el PDF */}
-            <div
-              ref={previewRef}
-              className="rounded-lg border border-border bg-card p-6"
-            >
-              <h3 className="text-lg font-semibold text-foreground mb-4">
-                Vista previa del reporte
-              </h3>
-
-              {/* Aquí puedes variar el contenido por página */}
-              {currentPage === 1 && (
-                <div className="space-y-2">
-                  <p>
-                    <span className="font-medium">Cliente:</span>{' '}
-                    {clientName}
-                  </p>
-                  <p>
-                    <span className="font-medium">Fecha:</span>{' '}
-                    {serviceDate}
-                  </p>
-                </div>
-              )}
-
-              {currentPage === 2 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Contenido de la página 2 (ejemplo). Inserta un resumen de
-                    pruebas, materiales, etc.
-                  </p>
-                </div>
-              )}
-
-              {currentPage === 3 && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Contenido de la página 3 (ejemplo). Inserta observaciones,
-                    firmas o anexos.
-                  </p>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Lado derecho: panel informativo */}
-          <aside className="rounded-lg border border-border bg-card p-6 space-y-4">
-            <h4 className="text-base font-semibold text-foreground">
-              Información del Reporte
-            </h4>
-
-            <div className="space-y-3 text-sm">
-              <div className="flex items-start space-x-2">
-                <Icon name="Calendar" size={16} className="text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-muted-foreground">Fecha de Creación</p>
-                  <p className="font-medium text-foreground">
-                    {new Date().toLocaleString('es-EC')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Icon name="User" size={16} className="text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-muted-foreground">Técnico responsable</p>
-                  <p className="font-medium text-foreground">
-                    {reportData?.responsibleParties?.astap?.name || '---'} –{' '}
-                    {reportData?.responsibleParties?.astap?.phone || '---'}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {reportData?.responsibleParties?.astap?.email || '---'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Icon name="Building" size={16} className="text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-muted-foreground">Cliente</p>
-                  <p className="font-medium text-foreground">{clientName}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Icon name="FileText" size={16} className="text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-muted-foreground">Tipo de informe</p>
-                  <p className="font-medium text-foreground">Mantenimiento preventivo</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Icon name="Clock" size={16} className="text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-muted-foreground">Estado</p>
-                  <p className="font-medium text-foreground">Pendiente de firma</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Icon name="File" size={16} className="text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="text-muted-foreground">Páginas</p>
-                  <p className="font-medium text-foreground">{totalPages} páginas</p>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-
-        {/* Barra inferior: acciones */}
-        <div className="mt-6 flex items-center justify-between">
+      {/* Controles */}
+      <div className="flex items-center justify-between mt-6">
+        <div className="space-x-2">
           <button
-            onClick={() => navigate('/service-report-creation')}
-            className="px-4 py-2 rounded-md border border-input text-sm"
+            className="px-4 py-2 rounded-md border hover:bg-muted"
+            onClick={() => navigate(-1)}
           >
             Volver
           </button>
-
-          <div className="space-x-2">
-            <button
-              onClick={handleDownloadPDF}
-              className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
-            >
-              <span className="inline-flex items-center space-x-2">
-                <Icon name="Download" size={16} />
-                <span>Descargar PDF</span>
-              </span>
-            </button>
-          </div>
+          <button
+            className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground hover:opacity-90"
+            onClick={handleDownloadPdf}
+          >
+            Descargar PDF
+          </button>
         </div>
-      </main>
+
+        <div className="space-x-2">
+          <button
+            disabled={page === 0}
+            onClick={prev}
+            className={`px-4 py-2 rounded-md border ${
+              page === 0 ? "opacity-50 cursor-not-allowed" : "hover:bg-muted"
+            }`}
+          >
+            Anterior
+          </button>
+          <button
+            disabled={page === pages.length - 1}
+            onClick={next}
+            className={`px-4 py-2 rounded-md border ${
+              page === pages.length - 1
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-muted"
+            }`}
+          >
+            Próximo
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
