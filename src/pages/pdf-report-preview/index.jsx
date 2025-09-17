@@ -1,171 +1,279 @@
-import React, { useState, useEffect , useRef} from 'react';
-import { useLocation } from 'react-router-dom';
-import Header from '../../components/ui/Header';
-import WorkflowProgress from '../../components/ui/WorkflowProgress';
-import DocumentPreviewPanel from './components/DocumentPreviewPanel';
-import ReportMetadataPanel from './components/ReportMetadataPanel';
-import FloatingActionToolbar from './components/FloatingActionToolbar';
-import BreadcrumbNavigation from './components/BreadcrumbNavigation';
-import PreviewLoadingState from './components/PreviewLoadingState';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import Icon from '../../components/AppIcon';
 
-const PDFReportPreview = () => {
-  const contentRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentZoom, setCurrentZoom] = useState(100);
-  const [reportData, setReportData] = useState(null);
+const formatDate = (isoLike) => {
+  if (!isoLike) return '---';
+  try {
+    // Espera formato YYYY-MM-DD
+    const [y, m, d] = isoLike.split('-');
+    return `${d}/${m}/${y}`;
+  } catch {
+    return isoLike;
+  }
+};
+
+const PdfReportPreview = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Mock report data - in real app this would come from props or API
-  const mockReportData = {
-    internalCode: 'AST-2025-001',
-    clientName: 'Empresa Industrial ABC S.A.',
-    address: 'Av. Industrial 123, Zona Industrial Norte',
-    reference: 'Mantenimiento preventivo equipos críticos',
-    technician: 'Ing. Carlos Mendoza',
-    serviceDate: new Date()?.toLocaleDateString('es-ES'),
-    equipmentType: 'Compresor Industrial',
-    brand: 'Atlas Copco',
-    model: 'GA 75 VSD+',
-    serialNumber: 'AIC123456789',
-    year: '2022',
-    workHours: '2,450',
-    activities: [
-      'Cambio de aceite lubricante y filtros',
-      'Limpieza del sistema de refrigeración',
-      'Calibración de sensores de presión y temperatura',
-      'Inspección y ajuste de correas de transmisión'
-    ],
-    materials: [
-      { quantity: '20 L', name: 'Aceite Sintético SAE 5W-30', code: 'OIL-SYN-5W30' },
-      { quantity: '2 pcs', name: 'Filtro de Aceite', code: 'FLT-OIL-001' },
-      { quantity: '1 pc', name: 'Filtro de Aire', code: 'FLT-AIR-002' }
-    ],
-    testResults: [
-      { parameter: 'Presión de Trabajo', before: '7.2 bar', after: '8.5 bar', status: 'Mejorado' },
-      { parameter: 'Temperatura de Aceite', before: '85°C', after: '72°C', status: 'Óptimo' },
-      { parameter: 'Vibración', before: '4.2 mm/s', after: '2.1 mm/s', status: 'Excelente' }
-    ]
-  };
+  // 1) Intentamos leer lo que llega desde ServiceReportCreation
+  const passedData = location?.state?.reportData;
 
-  useEffect(() => {
-    // Simulate loading delay for preview generation
-    const timer = setTimeout(() => {
-      setReportData(mockReportData);
-      setIsLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
+  // 2) Si no vino por state, lo intentamos desde localStorage
+  const fallbackData = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('astap-current-report');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   }, []);
 
-  const handleGeneratePDF = async () => {
-    const node = contentRef.current;
-    if (!node) return;
-    const canvas = await html2canvas(node, { scale: 2, useCORS: true });
+  const reportData = passedData || fallbackData;
+
+  // Ref del contenedor que convertiremos a imagen para PDF
+  const previewRef = useRef(null);
+
+  // Si no hay data, regresamos a crear informe
+  useEffect(() => {
+    if (!reportData) {
+      // No hay datos, volver a “Crear informe”
+      navigate('/service-report-creation', { replace: true });
+    }
+  }, [reportData, navigate]);
+
+  // Datos que usamos en la UI
+  const clientName = reportData?.generalInfo?.client || '---';
+  const serviceDate = formatDate(reportData?.generalInfo?.serviceDate);
+
+  // Paginación simple de demo
+  const totalPages = 3;
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
+
+  const goPrev = () => setCurrentPage((p) => (p > 1 ? p - 1 : p));
+  const goNext = () => setCurrentPage((p) => (p < totalPages ? p + 1 : p));
+
+  // Descargar PDF (saca imagen del bloque #previewRef y la pega al PDF)
+  const handleDownloadPDF = async () => {
+    if (!previewRef.current) return;
+    const element = previewRef.current;
+
+    // html2canvas al bloque de preview
+    const canvas = await html2canvas(element, {
+      scale: 2, // mejor calidad
+      backgroundColor: '#ffffff',
+      useCORS: true,
+    });
+
     const imgData = canvas.toDataURL('image/png');
 
+    // Tamaño A4 en pt -> 595 x 842 aprox
     const pdf = new jsPDF('p', 'pt', 'a4');
+
+    // Calculamos tamaño proporcional de la imagen al ancho del PDF
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
+
+    const imgWidth = pageWidth - 80; // margen 40pt a cada lado
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
+    pdf.addImage(imgData, 'PNG', 40, 40, imgWidth, imgHeight);
 
-    const name = `ASTAP_${(reportData?.generalInfo?.client || 'Reporte').replace(/[^a-z0-9_\-]/gi,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
-    pdf.save(name);
-  };
+    // Nombre de archivo con fecha/hora
+    const now = new Date();
+    const fileName = `ASTAP_Reporte_${now.getFullYear()}${String(
+      now.getMonth() + 1
+    ).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(
+      now.getHours()
+    ).padStart(2, '0')}${String(now.getMinutes()).padStart(
+      2,
+      '0'
+    )}${String(now.getSeconds()).padStart(2, '0')}.pdf`;
 
-  const handleSendEmail = async () => {
-    // Simulate email preparation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log('Preparing email with PDF attachment');
-        resolve();
-      }, 1000);
-    });
-  };
-
-  const handleZoomChange = (newZoom) => {
-    setCurrentZoom(newZoom);
+    pdf.save(fileName);
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
-      <main className="pt-15">
-        <div className="max-w-7xl mx-auto p-6">
-          {/* Breadcrumb Navigation */}
-          <BreadcrumbNavigation />
-
-          {/* Workflow Progress */}
-          <div className="mb-6">
-            <WorkflowProgress currentStep={3} />
+      {/* Header simple */}
+      <header className="max-w-7xl mx-auto px-6 py-6">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-center w-12 h-12 bg-primary rounded-lg">
+            <Icon name="Eye" size={24} className="text-primary-foreground" />
           </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Vista previa del informe</h1>
+            <p className="text-muted-foreground">
+              Revisar el documento antes de generar el PDF
+            </p>
+          </div>
+        </div>
+      </header>
 
-          {/* Page Header */}
-          <div className="mb-6">
+      <main className="max-w-7xl mx-auto px-6 pb-28">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+          {/* Lado izquierdo: visor con paginación */}
+          <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">
-                  Vista Previa del Reporte
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Revise el documento antes de generar el PDF final
-                </p>
+              <p className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages}
+              </p>
+              <div className="space-x-2">
+                <button
+                  onClick={goPrev}
+                  className="px-4 py-2 rounded-md border border-input text-sm disabled:opacity-50"
+                  disabled={!canPrev}
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={goNext}
+                  className="px-4 py-2 rounded-md border border-input text-sm disabled:opacity-50"
+                  disabled={!canNext}
+                >
+                  Próximo
+                </button>
               </div>
-              
-              {!isLoading && (
-                <div className="hidden lg:flex items-center space-x-2 text-sm text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-success rounded-full" />
-                    <span>Listo para generar</span>
-                  </div>
+            </div>
+
+            {/* BOX que se captura para el PDF */}
+            <div
+              ref={previewRef}
+              className="rounded-lg border border-border bg-card p-6"
+            >
+              <h3 className="text-lg font-semibold text-foreground mb-4">
+                Vista previa del reporte
+              </h3>
+
+              {/* Aquí puedes variar el contenido por página */}
+              {currentPage === 1 && (
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Cliente:</span>{' '}
+                    {clientName}
+                  </p>
+                  <p>
+                    <span className="font-medium">Fecha:</span>{' '}
+                    {serviceDate}
+                  </p>
+                </div>
+              )}
+
+              {currentPage === 2 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Contenido de la página 2 (ejemplo). Inserta un resumen de
+                    pruebas, materiales, etc.
+                  </p>
+                </div>
+              )}
+
+              {currentPage === 3 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Contenido de la página 3 (ejemplo). Inserta observaciones,
+                    firmas o anexos.
+                  </p>
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Main Content */}
-          <div className="flex h-[calc(100vh-280px)] bg-card rounded-lg shadow-card overflow-hidden">
-            {isLoading ? (
-              <PreviewLoadingState />
-            ) : (
-              <>
-                {/* Document Preview Panel */}
-                <DocumentPreviewPanel ref={contentRef}
-                  reportData={reportData}
-                  currentZoom={currentZoom}
-                  onZoomChange={handleZoomChange}
-                />
+          {/* Lado derecho: panel informativo */}
+          <aside className="rounded-lg border border-border bg-card p-6 space-y-4">
+            <h4 className="text-base font-semibold text-foreground">
+              Información del Reporte
+            </h4>
 
-                {/* Report Metadata Panel */}
-                <ReportMetadataPanel reportData={reportData} />
-              </>
-            )}
-          </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start space-x-2">
+                <Icon name="Calendar" size={16} className="text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Fecha de Creación</p>
+                  <p className="font-medium text-foreground">
+                    {new Date().toLocaleString('es-EC')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Icon name="User" size={16} className="text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Técnico responsable</p>
+                  <p className="font-medium text-foreground">
+                    {reportData?.responsibleParties?.astap?.name || '---'} –{' '}
+                    {reportData?.responsibleParties?.astap?.phone || '---'}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {reportData?.responsibleParties?.astap?.email || '---'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Icon name="Building" size={16} className="text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Cliente</p>
+                  <p className="font-medium text-foreground">{clientName}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Icon name="FileText" size={16} className="text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Tipo de informe</p>
+                  <p className="font-medium text-foreground">Mantenimiento preventivo</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Icon name="Clock" size={16} className="text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Estado</p>
+                  <p className="font-medium text-foreground">Pendiente de firma</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Icon name="File" size={16} className="text-muted-foreground mt-0.5" />
+                <div>
+                  <p className="text-muted-foreground">Páginas</p>
+                  <p className="font-medium text-foreground">{totalPages} páginas</p>
+                </div>
+              </div>
+            </div>
+          </aside>
         </div>
 
-        {/* Floating Action Toolbar */}
-        {!isLoading && (
-          <FloatingActionToolbar
-            reportData={reportData}
-            onGeneratePDF={handleGeneratePDF}
-            onSendEmail={handleSendEmail}
-          />
-        )}
+        {/* Barra inferior: acciones */}
+        <div className="mt-6 flex items-center justify-between">
+          <button
+            onClick={() => navigate('/service-report-creation')}
+            className="px-4 py-2 rounded-md border border-input text-sm"
+          >
+            Volver
+          </button>
+
+          <div className="space-x-2">
+            <button
+              onClick={handleDownloadPDF}
+              className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+            >
+              <span className="inline-flex items-center space-x-2">
+                <Icon name="Download" size={16} />
+                <span>Descargar PDF</span>
+              </span>
+            </button>
+          </div>
+        </div>
       </main>
     </div>
   );
 };
 
-export default PDFReportPreview;
+export default PdfReportPreview;
