@@ -1,228 +1,226 @@
-import React, { useMemo, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+// src/pages/pdf-report-preview/index.jsx
+import React, { useMemo, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import Header from "../../components/ui/Header";
+import Icon from "../../components/AppIcon";
 
-// Helpers simples
-const fmt = (v) => (v ? String(v) : '---');
-const money = (n) => (isNaN(+n) ? '0.00' : (+n).toFixed(2));
-
-export default function PdfReportPreview() {
+const PdfReportPreview = () => {
   const navigate = useNavigate();
   const { state } = useLocation();
-  const rootRef = useRef(null);
+  // 1) Intenta traer el formData desde la navegación
+  const stateData = state?.reportData;
 
-  // Trae el reportData del state o del localStorage como respaldo
-  const reportData = useMemo(() => {
-    if (state?.reportData) return state.reportData;
+  // 2) Si no vino por state (ej: refresco del browser o acceso directo), intenta desde localStorage
+  const storageData = (() => {
     try {
-      const raw = localStorage.getItem('astap-current-report');
+      const raw = localStorage.getItem("astap-current-report");
       return raw ? JSON.parse(raw) : null;
-    } catch {
+    } catch (e) {
       return null;
     }
-  }, [state]);
+  })();
 
-  // Si no hay data, vuelve al creador
-  if (!reportData) {
-    navigate('/service-report-creation');
-    return null;
-  }
+  const report = useMemo(() => stateData || storageData || null, [stateData, storageData]);
 
-  const { generalInfo, equipmentDetails, materialsUsage, responsibleParties, digitalSignatures } = reportData;
+  const printableRef = useRef(null);
 
-  // Total materiales
-  const materialesTotal = (materialsUsage || []).reduce((acc, m) => {
-    const q = parseFloat(m?.quantity || 0);
-    const u = parseFloat(m?.unitPrice || 0);
-    return acc + (q * u || 0);
-  }, 0);
+  const handleBack = () => navigate(-1);
 
-  // Genera el PDF a partir del contenedor
-  const handleDownload = async () => {
-    const el = rootRef.current;
-    if (!el) return;
+  const handleDownloadPDF = async () => {
+    if (!printableRef.current) return;
 
-    // Un canvas por página (para este layout 3 páginas de ejemplo)
-    // Si tu reporte crece, puedes dividir por secciones o aumentar el alto.
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    // Renderizamos el nodo a imagen con html2canvas
+    const canvas = await html2canvas(printableRef.current, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("p", "mm", "a4");
 
-    const pdf = new jsPDF('p', 'pt', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgProps = pdf.getImageProperties(imgData);
+    const imgWidth = pageWidth - 20;             // márgenes
+    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
 
-    // Ajusta ancho de la imagen al ancho de la página
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-    // Si la imagen es más alta que la página, la partimos en múltiples páginas
-    let remaining = imgHeight;
-    let position = 0;
-
-    while (remaining > 0) {
-      pdf.addImage(imgData, 'JPEG', 0, position ? 0 : 0, imgWidth, imgHeight);
-      remaining -= pageHeight;
-      if (remaining > 0) {
-        pdf.addPage();
-        // Desplazamos “visualmente” recortando la imagen en la siguiente página
-        position -= pageHeight;
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        remaining -= pageHeight; // ajusta el contador por la 2da inserción
+    let y = 10;
+    if (imgHeight < pageHeight - 20) {
+      // Cabe en una página
+      pdf.addImage(imgData, "PNG", 10, y, imgWidth, imgHeight);
+    } else {
+      // Paginación simple
+      let position = 0;
+      while (position < imgHeight) {
+        pdf.addImage(imgData, "PNG", 10, 10 - position, imgWidth, imgHeight);
+        position += pageHeight - 20;
+        if (position < imgHeight) pdf.addPage();
       }
     }
 
-    const fileName = `ASTAP_Reporte_${fmt(generalInfo?.internalCode)}.pdf`;
-    pdf.save(fileName);
+    // Nombre del archivo
+    const code = report?.generalInfo?.internalCode || "reporte";
+    pdf.save(`ASTAP_Reporte_${code}.pdf`);
   };
+
+  if (!report) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="max-w-5xl mx-auto px-6 py-10">
+          <div className="p-6 rounded-lg border border-border bg-card">
+            <p className="text-foreground">
+              No se encontró información del reporte. Vuelve a la edición y genera nuevamente la vista previa.
+            </p>
+            <button
+              onClick={handleBack}
+              className="mt-4 inline-flex items-center rounded-md bg-primary px-4 py-2 text-primary-foreground"
+            >
+              <Icon name="ArrowLeft" className="mr-2" /> Volver
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Datos principales
+  const gi = report.generalInfo || {};
+  const eq = report.equipmentDetails || {};
+  const astap = report.responsibleParties?.astap || {};
+  const clientResp = report.responsibleParties?.client || {};
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Vista previa del informe</h1>
-            <p className="text-muted-foreground">Revisar el documento antes de generar el PDF</p>
+      <Header />
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {/* Barra superior */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
+              <Icon name="Eye" className="text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">Vista previa del informe</h1>
+              <p className="text-sm text-muted-foreground">
+                Revisa el documento antes de descargarlo en PDF
+              </p>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="h-10 px-4 rounded-md border border-input bg-background text-sm"
-            >
-              Volver
+
+          <div className="flex items-center gap-3">
+            <button onClick={handleBack} className="rounded-md border px-4 py-2">
+              <Icon name="ArrowLeft" className="mr-2 inline" /> Volver
             </button>
             <button
-              onClick={handleDownload}
-              className="h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm"
+              onClick={handleDownloadPDF}
+              className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-primary-foreground"
             >
-              Descargar PDF
+              <Icon name="Download" className="mr-2" /> Descargar PDF
             </button>
           </div>
         </div>
 
-        {/* CONTENIDO A IMPRIMIR */}
-        <div ref={rootRef} className="bg-white rounded-lg border border-border p-6 space-y-16">
-          {/* Portada / Resumen */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">Resumen</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="space-y-1">
-                <p><strong>Cliente:</strong> {fmt(generalInfo?.client)}</p>
-                <p><strong>Código interno:</strong> {fmt(generalInfo?.internalCode)}</p>
-                <p><strong>Fecha:</strong> {fmt(generalInfo?.serviceDate)}</p>
-                <p><strong>Dirección:</strong> {fmt(generalInfo?.address)}</p>
-                <p><strong>Referencia:</strong> {fmt(generalInfo?.reference)}</p>
+        {/* CONTENIDO IMPRIMIBLE */}
+        <div
+          ref={printableRef}
+          className="space-y-6 rounded-lg border border-border bg-white p-6 text-[12.5px] leading-5"
+          style={{ color: "#111827" }} // aseguro color de texto (tailwind foreground fallback)
+        >
+          {/* Encabezado */}
+          <div className="rounded-lg border border-border bg-white p-4">
+            <h2 className="text-base font-semibold">Información general</h2>
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Cliente</div>
+                <div className="font-medium">{gi.client || "---"}</div>
               </div>
-              <div className="space-y-1">
-                <p><strong>Personal técnico:</strong> {fmt(generalInfo?.technicalPersonnel)}</p>
-                <p><strong>Teléfono del técnico:</strong> {fmt(generalInfo?.technicalPhone)}</p>
-                <p><strong>Correo del técnico:</strong> {fmt(generalInfo?.technicalEmail)}</p>
+              <div>
+                <div className="text-sm text-muted-foreground">Código interno</div>
+                <div className="font-medium">{gi.internalCode || "---"}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Fecha de servicio</div>
+                <div className="font-medium">{gi.serviceDate || "---"}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Dirección</div>
+                <div className="font-medium">{gi.address || "---"}</div>
+              </div>
+              <div className="col-span-2">
+                <div className="text-sm text-muted-foreground">Referencia</div>
+                <div className="font-medium">{gi.reference || "---"}</div>
               </div>
             </div>
-          </section>
+          </div>
 
           {/* Equipo */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">Equipo atendido</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <p><strong>Tipo:</strong> {fmt(equipmentDetails?.type)}</p>
-              <p><strong>Marca:</strong> {fmt(equipmentDetails?.brand)}</p>
-              <p><strong>Modelo:</strong> {fmt(equipmentDetails?.model)}</p>
-              <p><strong>N° Serie:</strong> {fmt(equipmentDetails?.serialNumber)}</p>
-              <p><strong>Año:</strong> {fmt(equipmentDetails?.year)}</p>
-              <p><strong>VIN/Chasis:</strong> {fmt(equipmentDetails?.vinChassis)}</p>
-              <p><strong>Placa:</strong> {fmt(equipmentDetails?.plateNumber)}</p>
-              <p><strong>Horas de trabajo:</strong> {fmt(equipmentDetails?.workHours)}</p>
-              <p><strong>Kilometraje:</strong> {fmt(equipmentDetails?.mileage)}</p>
+          <div className="rounded-lg border border-border bg-white p-4">
+            <h2 className="text-base font-semibold">Equipo intervenido</h2>
+            <div className="mt-3 grid grid-cols-3 gap-4">
+              <div><div className="text-sm text-muted-foreground">Tipo</div><div className="font-medium">{eq.type || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">Marca</div><div className="font-medium">{eq.brand || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">Modelo</div><div className="font-medium">{eq.model || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">N° serie</div><div className="font-medium">{eq.serialNumber || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">Año</div><div className="font-medium">{eq.year || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">VIN/Chasis</div><div className="font-medium">{eq.vinChassis || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">Placa</div><div className="font-medium">{eq.plateNumber || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">Horas de trabajo</div><div className="font-medium">{eq.workHours || "---"}</div></div>
+              <div><div className="text-sm text-muted-foreground">Kilometraje</div><div className="font-medium">{eq.mileage || "---"}</div></div>
             </div>
-          </section>
+          </div>
 
-          {/* Materiales */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">Materiales utilizados</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-border rounded-lg">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="px-3 py-2 text-left border-b">Cant.</th>
-                    <th className="px-3 py-2 text-left border-b">Material</th>
-                    <th className="px-3 py-2 text-left border-b">Código</th>
-                    <th className="px-3 py-2 text-left border-b">P. Unitario</th>
-                    <th className="px-3 py-2 text-left border-b">Total</th>
+          {/* Materiales usados */}
+          <div className="rounded-lg border border-border bg-white p-4">
+            <h2 className="text-base font-semibold">Materiales utilizados</h2>
+            {Array.isArray(report.materialsUsage) && report.materialsUsage.length > 0 ? (
+              <table className="mt-3 w-full table-auto border-collapse text-[12px]">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border px-2 py-1 text-left">Cantidad</th>
+                    <th className="border px-2 py-1 text-left">Material</th>
+                    <th className="border px-2 py-1 text-left">Código</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(materialsUsage || []).length === 0 && (
-                    <tr>
-                      <td className="px-3 py-2 border-b" colSpan={5}>— Sin registros —</td>
+                  {report.materialsUsage.map((m) => (
+                    <tr key={m.id || Math.random()}>
+                      <td className="border px-2 py-1">{m.quantity || ""}</td>
+                      <td className="border px-2 py-1">{m.materialName || ""}</td>
+                      <td className="border px-2 py-1">{m.materialCode || ""}</td>
                     </tr>
-                  )}
-                  {(materialsUsage || []).map((m) => {
-                    const q = parseFloat(m?.quantity || 0);
-                    const u = parseFloat(m?.unitPrice || 0);
-                    const t = q * u || 0;
-                    return (
-                      <tr key={m?.id}>
-                        <td className="px-3 py-2 border-b">{fmt(m?.quantity)}</td>
-                        <td className="px-3 py-2 border-b">{fmt(m?.materialName)}</td>
-                        <td className="px-3 py-2 border-b">{fmt(m?.materialCode)}</td>
-                        <td className="px-3 py-2 border-b">{money(u)}</td>
-                        <td className="px-3 py-2 border-b">{money(t)}</td>
-                      </tr>
-                    );
-                  })}
-                  <tr>
-                    <td className="px-3 py-2 border-t font-semibold" colSpan={4}>Costo total de materiales</td>
-                    <td className="px-3 py-2 border-t font-semibold">{money(materialesTotal)}</td>
-                  </tr>
+                  ))}
                 </tbody>
               </table>
-            </div>
-          </section>
+            ) : (
+              <div className="mt-2 text-muted-foreground">Sin materiales registrados.</div>
+            )}
+          </div>
 
           {/* Responsables */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">Partes responsables</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-              <div className="space-y-1">
-                <h3 className="font-medium">Técnico ASTAP</h3>
-                <p><strong>Nombre:</strong> {fmt(responsibleParties?.astap?.name)}</p>
-                <p><strong>Cargo:</strong> {fmt(responsibleParties?.astap?.position)}</p>
-                <p><strong>Teléfono:</strong> {fmt(responsibleParties?.astap?.phone)}</p>
-                <p><strong>Correo:</strong> {fmt(responsibleParties?.astap?.email)}</p>
+          <div className="rounded-lg border border-border bg-white p-4">
+            <h2 className="text-base font-semibold">Partes responsables</h2>
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Técnico ASTAP</div>
+                <div className="font-medium">{astap.name || "---"}</div>
+                <div className="text-sm">{astap.position || ""}</div>
+                <div className="text-sm">{astap.phone || ""}</div>
+                <div className="text-sm">{astap.email || ""}</div>
               </div>
-              <div className="space-y-1">
-                <h3 className="font-medium">Representante del cliente</h3>
-                <p><strong>Nombre:</strong> {fmt(responsibleParties?.client?.name)}</p>
-                <p><strong>Cargo:</strong> {fmt(responsibleParties?.client?.position)}</p>
-                <p><strong>Teléfono:</strong> {fmt(responsibleParties?.client?.phone)}</p>
-                <p><strong>Correo:</strong> {fmt(responsibleParties?.client?.email)}</p>
+              <div>
+                <div className="text-sm text-muted-foreground">Representante del Cliente</div>
+                <div className="font-medium">{clientResp.name || "---"}</div>
+                <div className="text-sm">{clientResp.position || ""}</div>
+                <div className="text-sm">{clientResp.phone || ""}</div>
+                <div className="text-sm">{clientResp.email || ""}</div>
               </div>
             </div>
-          </section>
+          </div>
 
-          {/* Firmas (si existieran imágenes base64) */}
-          <section className="space-y-4">
-            <h2 className="text-lg font-semibold">Firmas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="border border-border rounded-lg p-4 h-40 flex items-center justify-center">
-                {digitalSignatures?.astap ? (
-                  <img src={digitalSignatures.astap} alt="Firma ASTAP" className="h-32 object-contain" />
-                ) : (
-                  <span className="text-sm text-muted-foreground">Sin firma ASTAP</span>
-                )}
-              </div>
-              <div className="border border-border rounded-lg p-4 h-40 flex items-center justify-center">
-                {digitalSignatures?.client ? (
-                  <img src={digitalSignatures.client} alt="Firma Cliente" className="h-32 object-contain" />
-                ) : (
-                  <span className="text-sm text-muted-foreground">Sin firma Cliente</span>
-                )}
-              </div>
-            </div>
-          </section>
+          {/* Aquí podrías seguir con: pruebas antes/después, evidencias, firmas, etc. */}
         </div>
-      </div>
+      </main>
     </div>
   );
-}
+};
+
+export default PdfReportPreview;
