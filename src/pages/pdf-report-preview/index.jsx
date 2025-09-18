@@ -1,32 +1,76 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
-const PdfReportPreview = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const wrapperRef = useRef(null);
+// util formateo fecha
+const fmt = (iso) => {
+  try {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric" });
+  } catch { return iso; }
+};
 
-  // Trae los datos desde la navegación o, si no, desde localStorage
+const Line = () => <div className="h-px bg-border my-4" />;
+
+const Section = ({ title, children }) => (
+  <section className="bg-card rounded-lg border border-border p-4 md:p-6 mb-6">
+    <h3 className="text-base md:text-lg font-semibold text-foreground mb-3">{title}</h3>
+    {children}
+  </section>
+);
+
+export default function PdfReportPreview() {
+  const { state } = useLocation();
+  const navigate = useNavigate();
+  const rootRef = useRef(null);
+
+  // 1) Trae data de navigate o del localStorage (borrador en curso)
   const reportData = useMemo(() => {
-    if (location.state?.reportData) return location.state.reportData;
+    if (state?.reportData) return state.reportData;
     try {
       const raw = localStorage.getItem("astap-current-report");
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
-  }, [location.state]);
+  }, [state]);
+
+  // 2) Estado para habilitar el botón cuando está listo
+  const [isReady, setIsReady] = useState(false);
+
+  // 3) Espera a que se monte el DOM y carguen imágenes (firmas)
+  useEffect(() => {
+    if (!reportData) return;
+    const el = rootRef.current;
+    if (!el) return;
+
+    const imgs = Array.from(el.querySelectorAll("img"));
+    if (imgs.length === 0) {
+      setIsReady(true);
+      return;
+    }
+    let loaded = 0;
+    const done = () => {
+      loaded += 1;
+      if (loaded >= imgs.length) setIsReady(true);
+    };
+    imgs.forEach((img) => {
+      if (img.complete) done();
+      else {
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+      }
+    });
+  }, [reportData]);
 
   if (!reportData) {
     return (
-      <div className="max-w-5xl mx-auto p-6">
-        <p className="text-sm text-red-600 mb-4">
-          No hay datos del informe para previsualizar.
-        </p>
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        <p className="text-foreground mb-6">No encontré datos del informe.</p>
         <button
-          className="px-4 py-2 rounded bg-primary text-primary-foreground"
+          className="inline-flex items-center px-4 py-2 rounded bg-primary text-primary-foreground"
           onClick={() => navigate(-1)}
         >
           Volver
@@ -35,239 +79,264 @@ const PdfReportPreview = () => {
     );
   }
 
-  const { generalInfo, equipmentDetails, materialsUsage, responsibleParties, digitalSignatures } =
-    reportData;
+  const {
+    generalInfo,
+    equipmentDetails,
+    materialsUsage = [],
+    beforeTesting = [],
+    afterTesting = [],
+    activitiesIncidents = {},
+    responsibleParties = {},
+    digitalSignatures = {}
+  } = reportData;
 
-  const downloadPdf = async () => {
-    const node = wrapperRef.current;
-    if (!node) return;
+  const genPDF = async () => {
+    if (!rootRef.current) return;
+    const canvas = await html2canvas(rootRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: rootRef.current.scrollWidth,
+      windowHeight: rootRef.current.scrollHeight
+    });
 
-    // Captura el contenedor completo (múltiple página si es alto)
-    const canvas = await html2canvas(node, { scale: 2, useCORS: true });
-    const imgData = canvas.toDataURL("image/png");
-
+    const img = canvas.toDataURL("image/png");
     const pdf = new jsPDF("p", "pt", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
 
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    // Escalar al ancho de la página
+    const ratio = Math.min(pageW / canvas.width, pageH / canvas.height);
+    const imgW = canvas.width * ratio;
+    const imgH = canvas.height * ratio;
 
     let y = 0;
-    // Si la imagen es más alta que una página, vamos “rebanando”
-    if (imgHeight <= pageHeight) {
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+    // partir si el contenido es más alto que una página
+    if (imgH <= pageH) {
+      pdf.addImage(img, "PNG", 0, 0, imgW, imgH);
     } else {
-      let position = 0;
-      let remaining = imgHeight;
-      const canvasPage = document.createElement("canvas");
-      const ctx = canvasPage.getContext("2d");
+      let remaining = imgH;
+      let srcY = 0;
+      const pageCanvas = document.createElement("canvas");
+      const pageCtx = pageCanvas.getContext("2d");
 
-      const pageCanvasHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
-      canvasPage.width = canvas.width;
-      canvasPage.height = pageCanvasHeight;
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = Math.floor(pageH / ratio);
 
       while (remaining > 0) {
-        ctx.clearRect(0, 0, canvasPage.width, canvasPage.height);
-        ctx.drawImage(
+        pageCtx.clearRect(0, 0, pageCanvas.width, pageCanvas.height);
+        pageCtx.drawImage(
           canvas,
-          0,
-          position,
-          canvas.width,
-          Math.min(pageCanvasHeight, canvas.height - position),
-          0,
-          0,
-          canvasPage.width,
-          Math.min(pageCanvasHeight, canvas.height - position)
+          0, srcY, pageCanvas.width, pageCanvas.height,
+          0, 0, pageCanvas.width, pageCanvas.height
         );
-        const pageData = canvasPage.toDataURL("image/png");
-        if (y !== 0) pdf.addPage();
-        pdf.addImage(pageData, "PNG", 0, 0, pageWidth, pageHeight);
-        position += pageCanvasHeight;
-        remaining -= pageHeight;
-        y += pageHeight;
+        const pageImg = pageCanvas.toDataURL("image/png");
+        pdf.addImage(pageImg, "PNG", 0, 0, pageW, pageH);
+
+        remaining -= pageCanvas.height;
+        srcY += pageCanvas.height;
+        if (remaining > 0) pdf.addPage();
       }
     }
 
-    const code = generalInfo?.internalCode || "reporte";
-    pdf.save(`ASTAP_Reporte_${code}.pdf`);
+    pdf.save(`ASTAP_Reporte_${generalInfo?.internalCode || "SIN-COD"}.pdf`);
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Vista previa del informe</h1>
-          <div className="space-x-3">
-            <button
-              className="px-4 py-2 rounded border border-border text-foreground"
-              onClick={() => navigate(-1)}
-            >
-              Volver
-            </button>
-            <button
-              className="px-4 py-2 rounded bg-primary text-primary-foreground"
-              onClick={downloadPdf}
-            >
-              Descargar PDF
-            </button>
-          </div>
+    <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div className="flex items-center justify-between mb-6 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-bold text-foreground">Vista previa del informe</h1>
+        <div className="flex gap-2">
+          <button
+            className="inline-flex items-center px-4 py-2 rounded border border-input hover:bg-muted"
+            onClick={() => navigate(-1)}
+          >
+            Volver
+          </button>
+          <button
+            disabled={!isReady}
+            className={`inline-flex items-center px-4 py-2 rounded ${isReady ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+            onClick={genPDF}
+            title={isReady ? "Descargar PDF" : "Preparando contenido…"}
+          >
+            Descargar PDF
+          </button>
         </div>
+      </div>
 
-        {/* Contenedor completo que sí se exporta al PDF */}
-        <div ref={wrapperRef} className="space-y-6">
-          {/* Información general */}
-          <section className="bg-card border border-border rounded-lg p-16">
-            <h2 className="text-xl font-semibold mb-10">Información general</h2>
-            <div className="grid grid-cols-2 gap-10 text-sm">
-              <div>
-                <p className="font-medium">Cliente</p>
-                <p>{generalInfo?.client || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Código interno</p>
-                <p>{generalInfo?.internalCode || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Fecha de servicio</p>
-                <p>
-                  {generalInfo?.serviceDate
-                    ? new Date(generalInfo.serviceDate).toLocaleDateString("es-EC", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })
-                    : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="font-medium">Dirección</p>
-                <p>{generalInfo?.address || "—"}</p>
-              </div>
-              <div className="col-span-2">
-                <p className="font-medium">Referencia</p>
-                <p>{generalInfo?.reference || "—"}</p>
-              </div>
+      {/* CONTENIDO A IMPRIMIR */}
+      <div id="report-root" ref={rootRef} className="bg-white p-4 md:p-6 rounded-lg border border-border">
+        <Section title="Información general">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Cliente</p>
+              <p className="font-medium">{generalInfo?.client || "—"}</p>
             </div>
-          </section>
-
-          {/* Equipo intervenido */}
-          <section className="bg-card border border-border rounded-lg p-16">
-            <h2 className="text-xl font-semibold mb-10">Equipo intervenido</h2>
-            <div className="grid grid-cols-3 gap-10 text-sm">
-              <div>
-                <p className="font-medium">Tipo</p>
-                <p>{equipmentDetails?.type || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Marca</p>
-                <p>{equipmentDetails?.brand || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Modelo</p>
-                <p>{equipmentDetails?.model || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">N.º serie</p>
-                <p>{equipmentDetails?.serialNumber || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Año</p>
-                <p>{equipmentDetails?.year || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">VIN/Chasis</p>
-                <p>{equipmentDetails?.vinChassis || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Placa</p>
-                <p>{equipmentDetails?.plateNumber || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Horas de trabajo</p>
-                <p>{equipmentDetails?.workHours || "—"}</p>
-              </div>
-              <div>
-                <p className="font-medium">Kilometraje</p>
-                <p>{equipmentDetails?.mileage || "—"}</p>
-              </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Código interno</p>
+              <p className="font-medium">{generalInfo?.internalCode || "—"}</p>
             </div>
-          </section>
+            <div>
+              <p className="text-sm text-muted-foreground">Fecha de servicio</p>
+              <p className="font-medium">{fmt(generalInfo?.serviceDate) || "—"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Dirección</p>
+              <p className="font-medium">{generalInfo?.address || "—"}</p>
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-muted-foreground">Referencia</p>
+              <p className="font-medium">{generalInfo?.reference || "—"}</p>
+            </div>
+          </div>
+        </Section>
 
-          {/* Materiales */}
-          <section className="bg-card border border-border rounded-lg p-16">
-            <h2 className="text-xl font-semibold mb-6">Materiales utilizados</h2>
-            <table className="w-full text-sm border border-border rounded">
+        <Section title="Equipo intervenido">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div><p className="text-sm text-muted-foreground">Tipo</p><p className="font-medium">{equipmentDetails?.type || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Marca</p><p className="font-medium">{equipmentDetails?.brand || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Modelo</p><p className="font-medium">{equipmentDetails?.model || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">N.º serie</p><p className="font-medium">{equipmentDetails?.serialNumber || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Año</p><p className="font-medium">{equipmentDetails?.year || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">VIN/Chasis</p><p className="font-medium">{equipmentDetails?.vinChassis || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Placa</p><p className="font-medium">{equipmentDetails?.plateNumber || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Horas de trabajo</p><p className="font-medium">{equipmentDetails?.workHours || "—"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Kilometraje</p><p className="font-medium">{equipmentDetails?.mileage || "—"}</p></div>
+          </div>
+        </Section>
+
+        <Section title="Materiales utilizados">
+          <div className="w-full border border-border rounded">
+            <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="text-left px-3 py-2 border-b">Cantidad</th>
-                  <th className="text-left px-3 py-2 border-b">Material</th>
-                  <th className="text-left px-3 py-2 border-b">Código</th>
+                  <th className="text-left p-2">Cantidad</th>
+                  <th className="text-left p-2">Material</th>
+                  <th className="text-left p-2">Código</th>
                 </tr>
               </thead>
               <tbody>
-                {(materialsUsage || []).length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-2 border-b" colSpan={3}>
-                      — Sin registros —
-                    </td>
+                {materialsUsage.length === 0 ? (
+                  <tr><td className="p-2" colSpan="3">—</td></tr>
+                ) : materialsUsage.map((m) => (
+                  <tr key={m.id}>
+                    <td className="p-2">{m.quantity || "—"}</td>
+                    <td className="p-2">{m.materialName || "—"}</td>
+                    <td className="p-2">{m.materialCode || "—"}</td>
                   </tr>
-                ) : (
-                  materialsUsage.map((m) => (
-                    <tr key={m.id}>
-                      <td className="px-3 py-2 border-b">{m.quantity || "—"}</td>
-                      <td className="px-3 py-2 border-b">{m.materialName || "—"}</td>
-                      <td className="px-3 py-2 border-b">{m.materialCode || "—"}</td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
-          </section>
+          </div>
+        </Section>
 
-          {/* Partes responsables */}
-          <section className="bg-card border border-border rounded-lg p-16">
-            <h2 className="text-xl font-semibold mb-6">Partes responsables</h2>
-            <div className="grid grid-cols-2 gap-10 text-sm">
-              <div>
-                <p className="font-medium mb-2">Técnico ASTAP</p>
-                <p>{responsibleParties?.astap?.name || "—"}</p>
-                <p>{responsibleParties?.astap?.position || "—"}</p>
-                <p>{responsibleParties?.astap?.phone || "—"}</p>
-                <p>{responsibleParties?.astap?.email || "—"}</p>
-                {digitalSignatures?.astap && (
-                  <div className="mt-3">
-                    <img
-                      src={digitalSignatures.astap}
-                      alt="Firma técnico ASTAP"
-                      style={{ width: 180, height: "auto" }}
-                    />
-                  </div>
-                )}
-              </div>
+        <Section title="Pruebas antes del servicio">
+          <div className="w-full border border-border rounded">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left p-2">Parámetro</th>
+                  <th className="text-left p-2">Valor</th>
+                  <th className="text-left p-2">Unidad</th>
+                  <th className="text-left p-2">Observación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {beforeTesting.length === 0 ? (
+                  <tr><td className="p-2" colSpan="4">—</td></tr>
+                ) : beforeTesting.map((r, i) => (
+                  <tr key={i}>
+                    <td className="p-2">{r.parameter || "—"}</td>
+                    <td className="p-2">{r.actualValue || "—"}</td>
+                    <td className="p-2">{r.unit || "—"}</td>
+                    <td className="p-2">{r.note || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
 
-              <div>
-                <p className="font-medium mb-2">Representante del Cliente</p>
-                <p>{responsibleParties?.client?.name || "—"}</p>
-                <p>{responsibleParties?.client?.position || "—"}</p>
-                <p>{responsibleParties?.client?.phone || "—"}</p>
-                <p>{responsibleParties?.client?.email || "—"}</p>
-                {digitalSignatures?.client && (
-                  <div className="mt-3">
-                    <img
-                      src={digitalSignatures.client}
-                      alt="Firma cliente"
-                      style={{ width: 180, height: "auto" }}
-                    />
-                  </div>
-                )}
-              </div>
+        <Section title="Actividades e incidentes">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Actividades</p>
+              <p className="font-medium whitespace-pre-wrap">{activitiesIncidents?.activitiesDescription || "—"}</p>
             </div>
-          </section>
-        </div>
-      </main>
+            <div>
+              <p className="text-sm text-muted-foreground">Incidentes</p>
+              <p className="font-medium whitespace-pre-wrap">{activitiesIncidents?.incidentsDescription || "—"}</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Pruebas después del servicio">
+          <div className="w-full border border-border rounded">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="text-left p-2">Parámetro</th>
+                  <th className="text-left p-2">Valor</th>
+                  <th className="text-left p-2">Unidad</th>
+                  <th className="text-left p-2">Observación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {afterTesting.length === 0 ? (
+                  <tr><td className="p-2" colSpan="4">—</td></tr>
+                ) : afterTesting.map((r, i) => (
+                  <tr key={i}>
+                    <td className="p-2">{r.parameter || "—"}</td>
+                    <td className="p-2">{r.actualValue || "—"}</td>
+                    <td className="p-2">{r.unit || "—"}</td>
+                    <td className="p-2">{r.note || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+
+        <Section title="Partes responsables">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <p className="font-semibold mb-1">Técnico ASTAP</p>
+              <p>{responsibleParties?.astap?.name || "—"}</p>
+              <p className="text-sm text-muted-foreground">{responsibleParties?.astap?.position || "—"}</p>
+              <p className="text-sm">{responsibleParties?.astap?.phone || "—"}</p>
+              <p className="text-sm">{responsibleParties?.astap?.email || "—"}</p>
+              {digitalSignatures?.astap && (
+                <>
+                  <Line />
+                  <img
+                    src={digitalSignatures.astap}
+                    alt="Firma ASTAP"
+                    className="h-32 object-contain"
+                  />
+                </>
+              )}
+            </div>
+
+            <div>
+              <p className="font-semibold mb-1">Representante del Cliente</p>
+              <p>{responsibleParties?.client?.name || "—"}</p>
+              <p className="text-sm text-muted-foreground">{responsibleParties?.client?.position || "—"}</p>
+              <p className="text-sm">{responsibleParties?.client?.phone || "—"}</p>
+              <p className="text-sm">{responsibleParties?.client?.email || "—"}</p>
+              {digitalSignatures?.client && (
+                <>
+                  <Line />
+                  <img
+                    src={digitalSignatures.client}
+                    alt="Firma Cliente"
+                    className="h-32 object-contain"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </Section>
+      </div>
     </div>
   );
-};
-
-export default PdfReportPreview;
+}
