@@ -1,15 +1,17 @@
-// vite.config.mjs
+// vite.config.js (o .mjs)
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tsconfigPaths from "vite-tsconfig-paths";
 import tagger from "@dhiwise/component-tagger";
+
+// 👇 OJO: quitamos esta línea
+// import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   build: {
-    outDir: "dist",          //
+    outDir: "dist",          // sigue bien para Netlify
     chunkSizeWarningLimit: 2000,
   },
-  plugins: [tsconfigPaths(), react(), tagger()],
+    plugins: [react(), tagger()],
   server: {
     port: "4028",
     host: "0.0.0.0",
