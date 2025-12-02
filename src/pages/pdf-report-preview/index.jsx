@@ -15,6 +15,7 @@ export const generateReportPdf = (report) => {
   const beforeTesting = safeReport.beforeTesting || [];
   const activities = safeReport.activitiesIncidents || {};
   const signatures = safeReport.digitalSignatures || {};
+  const materials = safeReport.materials || [];
 
   // Encabezado
   pdf.setFontSize(18);
@@ -87,8 +88,35 @@ export const generateReportPdf = (report) => {
   pdf.text(actText, 14, currentY + 7, { maxWidth: 180 });
   pdf.text(incText, 14, currentY + 21, { maxWidth: 180 });
 
+  // Materiales utilizados
+  let nextY = currentY + 40;
+  if (materials.length > 0) {
+    pdf.setFontSize(14);
+    pdf.text("Materiales utilizados", 14, nextY);
+
+    pdf.autoTable({
+      startY: nextY + 5,
+      head: [["Código", "Descripción", "Cant.", "Und."]],
+      body: materials.map((m) => [
+        m.code || "",
+        m.description || "",
+        m.quantity || "",
+        m.unit || "",
+      ]),
+      styles: { fontSize: 9 },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 90 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 20 },
+      },
+    });
+
+    nextY = pdf.lastAutoTable.finalY + 15;
+  }
+
   // Firmas
-  const signaturesBaseY = currentY + 45;
+  const signaturesBaseY = Math.max(nextY, 180); // asegurar que firmas queden abajo
   pdf.setFontSize(14);
   pdf.text("Firmas", 14, signaturesBaseY);
 
@@ -198,7 +226,8 @@ const PDFReportPreview = () => {
             </div>
             <p className="text-xs text-slate-500">
               El PDF incluirá la información general, pruebas antes del
-              servicio, actividades, incidentes y firmas registradas.
+              servicio, materiales utilizados, actividades, incidentes y
+              firmas registradas.
             </p>
           </section>
         ) : (
