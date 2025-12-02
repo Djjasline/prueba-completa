@@ -245,6 +245,14 @@ const ServiceReportCreation = () => {
     navigate("/digital-signature-capture");
   };
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
+  const handleGoToList = () => {
+    navigate("/report-history-management");
+  };
+
   // =====================
   // Render
   // =====================
@@ -920,15 +928,40 @@ const ServiceReportCreation = () => {
 
         {/* Barra inferior de acciones */}
         <section className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            className="inline-flex items-center text-xs text-slate-600 hover:text-slate-900"
-          >
-            <Icon name="Save" size={14} className="mr-1" />
-            Guardar borrador
-          </button>
+          {/* Lado izquierdo: navegación y borrador */}
+          <div className="flex items-center gap-3">
+            {/* Volver a la pantalla anterior */}
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="ArrowLeft"
+              onClick={handleBack}
+            >
+              Volver
+            </Button>
 
+            {/* Ir al listado de informes */}
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="List"
+              onClick={handleGoToList}
+            >
+              Ver listado de informes
+            </Button>
+
+            {/* Guardar borrador */}
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="inline-flex items-center text-xs text-slate-600 hover:text-slate-900"
+            >
+              <Icon name="Save" size={14} className="mr-1" />
+              Guardar borrador
+            </button>
+          </div>
+
+          {/* Lado derecho: continuar */}
           <Button
             size="sm"
             iconName="ArrowRight"
