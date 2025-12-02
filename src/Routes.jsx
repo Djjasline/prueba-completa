@@ -1,6 +1,5 @@
 import React from "react";
 import { BrowserRouter, Routes as RouterRoutes, Route } from "react-router-dom";
-
 import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NotFound from "./pages/NotFound";
@@ -17,12 +16,21 @@ const Routes = () => {
       <ErrorBoundary>
         <ScrollToTop />
         <RouterRoutes>
-          <Route path="/" element={<DigitalSignatureCapture />} />
-          <Route path="/service-report-creation" element={<ServiceReportCreation />} />
-          <Route path="/email-integration-interface" element={<EmailIntegrationInterface />} />
-          <Route path="/digital-signature-capture" element={<DigitalSignatureCapture />} />
+          {/* 1° Al abrir la app: listado */}
+          <Route path="/" element={<ReportHistoryManagement />} />
+          <Route
+            path="/service-report-creation"
+            element={<ServiceReportCreation />}
+          />
+          <Route
+            path="/email-integration-interface"
+            element={<EmailIntegrationInterface />}
+          />
+          <Route
+            path="/digital-signature-capture"
+            element={<DigitalSignatureCapture />}
+          />
           <Route path="/pdf-report-preview" element={<PDFReportPreview />} />
-          <Route path="/report-history-management" element={<ReportHistoryManagement />} />
           <Route path="*" element={<NotFound />} />
         </RouterRoutes>
       </ErrorBoundary>
