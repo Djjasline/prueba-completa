@@ -12,18 +12,18 @@ const PDFReportPreview = () => {
   const general = currentReport?.generalInfo || {};
 
   const handleBack = () => {
-    // Volver a la pantalla anterior (firma o formulario)
-    navigate(-1);
+    // volver al formulario inicial
+    navigate("/");
   };
 
-  const handleGeneratePdf = () => {
+  const handleGeneratePdf = async () => {
     if (!currentReport) {
       alert("No hay datos de reporte cargados.");
       return;
     }
 
     try {
-      generateReportPdf(currentReport);
+      await generateReportPdf(currentReport);
     } catch (error) {
       console.error("Error al generar PDF:", error);
       alert("Ocurrió un error al generar el PDF.");
@@ -47,7 +47,6 @@ const PDFReportPreview = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Botón Volver */}
             <Button
               variant="outline"
               size="sm"
@@ -57,7 +56,6 @@ const PDFReportPreview = () => {
               Volver
             </Button>
 
-            {/* Botón generar PDF */}
             <Button
               size="sm"
               iconName="Download"
@@ -76,7 +74,6 @@ const PDFReportPreview = () => {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 text-xs">
-            {/* Cliente */}
             <div className="space-y-1">
               <p className="text-slate-500">Cliente</p>
               <p className="font-medium text-slate-900">
@@ -84,7 +81,6 @@ const PDFReportPreview = () => {
               </p>
             </div>
 
-            {/* Código interno */}
             <div className="space-y-1">
               <p className="text-slate-500">Código interno</p>
               <p className="font-medium text-slate-900">
@@ -92,7 +88,6 @@ const PDFReportPreview = () => {
               </p>
             </div>
 
-            {/* Fecha de servicio */}
             <div className="space-y-1">
               <p className="text-slate-500">Fecha de servicio</p>
               <p className="font-medium text-slate-900">
@@ -100,7 +95,6 @@ const PDFReportPreview = () => {
               </p>
             </div>
 
-            {/* Dirección */}
             <div className="space-y-1">
               <p className="text-slate-500">Dirección</p>
               <p className="font-medium text-slate-900">
