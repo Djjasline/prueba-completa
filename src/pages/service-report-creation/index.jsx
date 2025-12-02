@@ -1,364 +1,420 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Header from '../../components/ui/Header';
-import WorkflowProgress from '../../components/ui/WorkflowProgress';
-import ContextualActionBar from '../../components/ui/ContextualActionBar';
-import GeneralInformationSection from './components/GeneralInformationSection';
-import DynamicTestingTable from './components/DynamicTestingTable';
-import ActivitiesIncidentsSection from './components/ActivitiesIncidentsSection';
-import MaterialsUsageSection from './components/MaterialsUsageSection';
-import EquipmentDetailsSection from './components/EquipmentDetailsSection';
-import ResponsiblePartiesSection from './components/ResponsiblePartiesSection';
-import DigitalSignatureSection from './components/DigitalSignatureSection';
-import Icon from '../../components/AppIcon';
+// src/pages/service-report-creation/index.jsx
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Button from "../../components/ui/Button";
+import { useReports } from "../../context/ReportContext";
+
+const emptyGeneralInfo = {
+  client: "",
+  serviceDate: "",
+  internalCode: "",
+  address: "",
+  reference: "",
+  technicalPersonnel: "",
+  technicianPhone: "",
+  technicianEmail: "",
+};
 
 const ServiceReportCreation = () => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState({
-    generalInfo: false,
-    beforeTesting: false,
-    activitiesIncidents: false,
-    afterTesting: false,
-    materialsUsage: false,
-    equipmentDetails: false,
-    responsibleParties: false,
-    digitalSignatures: false
-  });
+  const { currentReport, saveDraft } = useReports();
 
-  const [formData, setFormData] = useState({
-    generalInfo: {
-      client: '',
-      internalCode: '',
-      serviceDate: new Date().toISOString().split('T')[0],
-      address: '',
-      reference: '',
-      technicalPersonnel: ''
-    },
-    beforeTesting: [],
-    activitiesIncidents: {
-      activitiesDescription: '',
-      activitiesEvidenceUrl: '',
-      activitiesEvidenceImages: [],
-      incidentsDescription: '',
-      incidentsEvidenceUrl: '',
-      incidentsEvidenceImages: []
-    },
-    afterTesting: [],
-    materialsUsage: [],
-    equipmentDetails: {
-      type: '',
-      brand: '',
-      model: '',
-      serialNumber: '',
-      year: '',
-      vinChassis: '',
-      plateNumber: '',
-      workHours: '',
-      mileage: '',
-      panoramicImage: ''
-    },
-    responsibleParties: {
-      astap: {
-        name: '',
-        position: '',
-        phone: '',
-        email: ''
+  const [generalInfo, setGeneralInfo] = useState(emptyGeneralInfo);
+  const [beforeTesting, setBeforeTesting] = useState([
+    { id: 1, parameter: "", value: "" },
+  ]);
+  const [activitiesDescription, setActivitiesDescription] = useState("");
+  const [incidentsDescription, setIncidentsDescription] = useState("");
+
+  // Al entrar a la pantalla, cargar datos del reporte actual (si existe)
+  useEffect(() => {
+    if (currentReport) {
+      setGeneralInfo({
+        ...emptyGeneralInfo,
+        ...(currentReport.generalInfo || {}),
+      });
+
+      setBeforeTesting(
+        (currentReport.beforeTesting || []).length > 0
+          ? currentReport.beforeTesting.map((row, idx) => ({
+              id: idx + 1,
+              parameter: row.parameter || "",
+              value: row.value || "",
+            }))
+          : [{ id: 1, parameter: "", value: "" }]
+      );
+
+      setActivitiesDescription(
+        currentReport.activitiesIncidents?.activitiesDescription || ""
+      );
+      setIncidentsDescription(
+        currentReport.activitiesIncidents?.incidentsDescription || ""
+      );
+    }
+  }, [currentReport]);
+
+  // Handlers de formulario
+  const handleGeneralChange = (field, value) => {
+    setGeneralInfo((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleBeforeTestingChange = (id, field, value) => {
+    setBeforeTesting((rows) =>
+      rows.map((row) =>
+        row.id === id ? { ...row, [field]: value } : row
+      )
+    );
+  };
+
+  const handleAddBeforeRow = () => {
+    setBeforeTesting((rows) => [
+      ...rows,
+      { id: Date.now(), parameter: "", value: "" },
+    ]);
+  };
+
+  const handleRemoveBeforeRow = (id) => {
+    setBeforeTesting((rows) => {
+      const filtered = rows.filter((r) => r.id !== id);
+      return filtered.length > 0 ? filtered : [{ id: 1, parameter: "", value: "" }];
+    });
+  };
+
+  // Arma el objeto completo de reporte a partir del formulario
+  const buildReportObject = () => {
+    return {
+      ...currentReport,
+      generalInfo: { ...generalInfo },
+      beforeTesting: beforeTesting
+        .filter((r) => r.parameter || r.value)
+        .map((r) => ({ parameter: r.parameter, value: r.value })),
+      activitiesIncidents: {
+        activitiesDescription,
+        incidentsDescription,
       },
-      client: {
-        name: '',
-        position: '',
-        phone: '',
-        email: ''
-      }
-    },
-    digitalSignatures: {
-      astap: null,
-      client: null
-    }
-  });
-
-  // Load saved data from localStorage on component mount
-  useEffect(() => {
-    const savedData = localStorage.getItem('astap-current-report');
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        setFormData(parsedData);
-      } catch (error) {
-        console.error('Error loading saved report data:', error);
-      }
-    }
-  }, []);
-
-  // Auto-save to localStorage whenever formData changes
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      localStorage.setItem('astap-current-report', JSON.stringify(formData));
-    }, 1000); // Debounce for 1 second
-
-    return () => clearTimeout(timeoutId);
-  }, [formData]);
-
-  const updateFormData = (section, data) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: data
-    }));
+      // preservamos firmas, materiales, etc. que se llenan en otras pantallas
+      digitalSignatures: currentReport?.digitalSignatures || {},
+      materials: currentReport?.materials || [],
+    };
   };
 
-  const toggleSection = (sectionKey) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey]
-    }));
+  // Guardar como borrador
+  const handleSaveDraft = () => {
+    const report = buildReportObject();
+    saveDraft(report);
+    alert("Borrador guardado correctamente.");
   };
 
-  const validateForm = () => {
-    const errors = [];
-    
-    // Validate general information
-    if (!formData.generalInfo.client.trim()) errors.push('Cliente es requerido');
-    if (!formData.generalInfo.internalCode.trim()) errors.push('Código interno es requerido');
-    if (!formData.generalInfo.serviceDate) errors.push('Fecha de servicio es requerida');
-    if (!formData.generalInfo.address.trim()) errors.push('Dirección es requerida');
-    if (!formData.generalInfo.technicalPersonnel.trim()) errors.push('Personal técnico es requerido');
-    
-    // Validate equipment details
-    if (!formData.equipmentDetails.type.trim()) errors.push('Tipo de equipo es requerido');
-    if (!formData.equipmentDetails.brand.trim()) errors.push('Marca del equipo es requerida');
-    if (!formData.equipmentDetails.model.trim()) errors.push('Modelo del equipo es requerido');
-    if (!formData.equipmentDetails.serialNumber.trim()) errors.push('Número de serie es requerido');
-    
-    // Validate responsible parties
-    if (!formData.responsibleParties.astap.name.trim()) errors.push('Nombre del técnico ASTAP es requerido');
-    if (!formData.responsibleParties.astap.position.trim()) errors.push('Cargo del técnico ASTAP es requerido');
-    if (!formData.responsibleParties.astap.phone.trim()) errors.push('Teléfono del técnico ASTAP es requerido');
-    if (!formData.responsibleParties.client.name.trim()) errors.push('Nombre del representante del cliente es requerido');
-    if (!formData.responsibleParties.client.position.trim()) errors.push('Cargo del representante del cliente es requerido');
-    if (!formData.responsibleParties.client.phone.trim()) errors.push('Teléfono del representante del cliente es requerido');
-    
-    return errors;
+  // Guardar y pasar a firmas
+  const handleGoToSignatures = () => {
+    const report = buildReportObject();
+    saveDraft(report); // seguimos en borrador hasta que se genere/envíe
+    navigate("/digital-signature-capture");
   };
-
-  const handleSaveDraft = async () => {
-    setIsLoading(true);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Save to localStorage with timestamp
-      const draftData = {
-        ...formData,
-        savedAt: new Date().toISOString(),
-        status: 'draft'
-      };
-      
-      localStorage.setItem(`astap-draft-${Date.now()}`, JSON.stringify(draftData));
-      
-      // Show success message (in a real app, you'd use a toast notification)
-      alert('Borrador guardado exitosamente');
-      
-    } catch (error) {
-      console.error('Error saving draft:', error);
-      alert('Error al guardar el borrador');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGeneratePDF = async () => {
-    const validationErrors = validateForm();
-    
-    if (validationErrors.length > 0) {
-      alert(`Por favor complete los siguientes campos:\n\n${validationErrors.join('\n')}`);
-      return;
-    }
-    
-    if (!formData.digitalSignatures.astap || !formData.digitalSignatures.client) {
-      alert('Se requieren ambas firmas digitales para generar el PDF');
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Simulate PDF generation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // In a real implementation, you would use html2canvas and jsPDF here
-      // For now, we'll navigate to the PDF preview page 
-      navigate('/pdf-report-preview', { 
-        state: { reportData: formData } 
-      });
-      
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Error al generar el PDF');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendReport = async () => {
-    const validationErrors = validateForm();
-    
-    if (validationErrors.length > 0) {
-      alert(`Por favor complete los siguientes campos:\n\n${validationErrors.join('\n')}`);
-      return;
-    }
-    
-    if (!formData.digitalSignatures.astap || !formData.digitalSignatures.client) {
-      alert('Se requieren ambas firmas digitales para enviar el reporte');
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    try {
-      // Simulate email sending
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Navigate to email integration interface
-      navigate('/email-integration-interface', { 
-        state: { reportData: formData } 
-      });
-      
-    } catch (error) {
-      console.error('Error sending report:', error);
-      alert('Error al enviar el reporte');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const contextualActions = [
-    {
-      label: 'Guardar Borrador',
-      variant: 'outline',
-      icon: 'Save',
-      onClick: handleSaveDraft,
-      loading: isLoading
-    },
-    {
-      label: 'Generar PDF',
-      variant: 'secondary',
-      icon: 'FileText',
-      onClick: handleGeneratePDF,
-      loading: isLoading
-    },
-    {
-      label: 'Enviar Reporte',
-      variant: 'default',
-      icon: 'Send',
-      onClick: handleSendReport,
-      loading: isLoading,
-      primary: true
-    }
-  ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      
-      <main className="pt-15">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Page Header */}
-          <div className="mb-8">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-primary rounded-lg">
-                <Icon name="FileText" size={24} className="text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">
-                  Crear Reporte de Servicio
-                </h1>
-                <p className="text-muted-foreground">
-                  Complete la información del servicio técnico realizado
-                </p>
-              </div>
+    <div className="min-h-screen bg-slate-50 px-4 py-6">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Encabezado */}
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Crear Reporte de Servicio
+            </h1>
+            <p className="text-sm text-slate-600">
+              Completa la información del servicio técnico realizado.
+            </p>
+          </div>
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveDraft}
+              iconName="Save"
+            >
+              Guardar borrador
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleGoToSignatures}
+              iconName="ArrowRight"
+            >
+              Continuar a Firma Digital
+            </Button>
+          </div>
+        </header>
+
+        {/* Card Información general */}
+        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Información general
+              </h2>
+              <p className="text-xs text-slate-500">
+                Datos básicos del servicio y cliente
+              </p>
             </div>
-            
-            {/* Workflow Progress */}
-            <WorkflowProgress currentStep={1} className="mb-6" />
           </div>
 
-          {/* Form Sections */}
-          <div className="space-y-6 mb-24">
-            <GeneralInformationSection
-              formData={formData}
-              updateFormData={updateFormData}
-              isCollapsed={collapsedSections.generalInfo}
-              onToggleCollapse={() => toggleSection('generalInfo')}
-            />
-            
-            <DynamicTestingTable
-              title="Pruebas Antes del Servicio"
-              description="Parámetros medidos antes de iniciar el servicio"
-              icon="TestTube"
-              data={formData.beforeTesting}
-              onUpdateData={(data) => updateFormData('beforeTesting', data)}
-              isCollapsed={collapsedSections.beforeTesting}
-              onToggleCollapse={() => toggleSection('beforeTesting')}
-            />
-            
-            <ActivitiesIncidentsSection
-              formData={formData}
-              updateFormData={updateFormData}
-              isCollapsed={collapsedSections.activitiesIncidents}
-              onToggleCollapse={() => toggleSection('activitiesIncidents')}
-            />
-            
-            <DynamicTestingTable
-              title="Pruebas Después del Servicio"
-              description="Parámetros medidos después de completar el servicio"
-              icon="CheckCircle"
-              data={formData.afterTesting}
-              onUpdateData={(data) => updateFormData('afterTesting', data)}
-              isCollapsed={collapsedSections.afterTesting}
-              onToggleCollapse={() => toggleSection('afterTesting')}
-            />
-            
-            <MaterialsUsageSection
-              formData={formData}
-              updateFormData={updateFormData}
-              isCollapsed={collapsedSections.materialsUsage}
-              onToggleCollapse={() => toggleSection('materialsUsage')}
-            />
-            
-            <EquipmentDetailsSection
-              formData={formData}
-              updateFormData={updateFormData}
-              isCollapsed={collapsedSections.equipmentDetails}
-              onToggleCollapse={() => toggleSection('equipmentDetails')}
-            />
-            
-            <ResponsiblePartiesSection
-              formData={formData}
-              updateFormData={updateFormData}
-              isCollapsed={collapsedSections.responsibleParties}
-              onToggleCollapse={() => toggleSection('responsibleParties')}
-            />
-            
-            <DigitalSignatureSection
-              formData={formData}
-              updateFormData={updateFormData}
-              isCollapsed={collapsedSections.digitalSignatures}
-              onToggleCollapse={() => toggleSection('digitalSignatures')}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Cliente */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Cliente *
+              </label>
+              <input
+                type="text"
+                value={generalInfo.client}
+                onChange={(e) =>
+                  handleGeneralChange("client", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Nombre del cliente"
+              />
+            </div>
+
+            {/* Código interno */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Código interno *
+              </label>
+              <input
+                type="text"
+                value={generalInfo.internalCode}
+                onChange={(e) =>
+                  handleGeneralChange("internalCode", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Ej: P25-059"
+              />
+            </div>
+
+            {/* Fecha de servicio */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Fecha de servicio *
+              </label>
+              <input
+                type="date"
+                value={generalInfo.serviceDate}
+                onChange={(e) =>
+                  handleGeneralChange("serviceDate", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+              />
+            </div>
+
+            {/* Dirección */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Dirección *
+              </label>
+              <input
+                type="text"
+                value={generalInfo.address}
+                onChange={(e) =>
+                  handleGeneralChange("address", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Dirección del servicio"
+              />
+            </div>
+
+            {/* Referencia */}
+            <div className="md:col-span-2 flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Referencia
+              </label>
+              <input
+                type="text"
+                value={generalInfo.reference}
+                onChange={(e) =>
+                  handleGeneralChange("reference", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Descripción breve del problema o referencia"
+              />
+            </div>
+
+            {/* Técnico personal */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Técnico personal *
+              </label>
+              <input
+                type="text"
+                value={generalInfo.technicalPersonnel}
+                onChange={(e) =>
+                  handleGeneralChange(
+                    "technicalPersonnel",
+                    e.target.value
+                  )
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Nombre del técnico"
+              />
+            </div>
+
+            {/* Teléfono del técnico */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Teléfono del técnico
+              </label>
+              <input
+                type="tel"
+                value={generalInfo.technicianPhone}
+                onChange={(e) =>
+                  handleGeneralChange("technicianPhone", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Número de contacto"
+              />
+            </div>
+
+            {/* Correo del técnico */}
+            <div className="md:col-span-2 flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Correo del técnico
+              </label>
+              <input
+                type="email"
+                value={generalInfo.technicianEmail}
+                onChange={(e) =>
+                  handleGeneralChange("technicianEmail", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="correo@astap.com"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Pruebas antes del servicio */}
+        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Pruebas Antes del Servicio
+              </h2>
+              <p className="text-xs text-slate-500">
+                Parámetros medidos antes de iniciar el servicio
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleAddBeforeRow}
+              iconName="Plus"
+            >
+              Agregar parámetro
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {beforeTesting.map((row) => (
+              <div
+                key={row.id}
+                className="grid grid-cols-12 gap-2 items-center"
+              >
+                <input
+                  className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Parámetro"
+                  value={row.parameter}
+                  onChange={(e) =>
+                    handleBeforeTestingChange(
+                      row.id,
+                      "parameter",
+                      e.target.value
+                    )
+                  }
+                />
+                <input
+                  className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Valor"
+                  value={row.value}
+                  onChange={(e) =>
+                    handleBeforeTestingChange(
+                      row.id,
+                      "value",
+                      e.target.value
+                    )
+                  }
+                />
+                <div className="col-span-2 flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    iconName="Trash2"
+                    onClick={() => handleRemoveBeforeRow(row.id)}
+                  >
+                    Quitar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Actividades e incidentes */}
+        <section className="bg-white rounded-xl shadow border p-6 space-y-4 mb-16">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Actividades e Incidentes
+            </h2>
+            <p className="text-xs text-slate-500">
+              Detalla las actividades realizadas e incidentes ocurridos
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-700">
+              Actividades realizadas
+            </label>
+            <textarea
+              value={activitiesDescription}
+              onChange={(e) => setActivitiesDescription(e.target.value)}
+              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 min-h-[80px]"
+              placeholder="Describe las actividades realizadas durante el servicio"
             />
           </div>
-        </div>
-      </main>
 
-      {/* Contextual Action Bar */}
-      <ContextualActionBar
-        actions={contextualActions}
-        position="sticky"
-        isLoading={isLoading}
-      />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-700">
+              Incidentes
+            </label>
+            <textarea
+              value={incidentsDescription}
+              onChange={(e) => setIncidentsDescription(e.target.value)}
+              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 min-h-[80px]"
+              placeholder="Registra cualquier incidente relevante"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSaveDraft}
+              iconName="Save"
+            >
+              Guardar borrador
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleGoToSignatures}
+              iconName="ArrowRight"
+            >
+              Continuar a Firma Digital
+            </Button>
+          </div>
+        </section>
+      </div>
     </div>
   );
 };
 
-export default ServiceReportCreation
+export default ServiceReportCreation;
