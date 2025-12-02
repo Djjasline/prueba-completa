@@ -1,10 +1,11 @@
 // src/utils/generateReportPdf.js
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import astapLogo from "../astap-logo.jpg"; // <<-- AQUÍ usa tu logo real
+import astapLogo from "../astap-logo.jpg"; // tu logo real
 
-// Colores corporativos (aprox del logo)
+// Colores corporativos (aprox)
 const BRAND_BLUE = { r: 4, g: 55, b: 94 }; // azul oscuro
+const HEADER_PASTEL = [217, 231, 242];     // celeste pastel para cabeceras
 const PAGE_WIDTH = 210;
 const MARGIN_X = 14;
 
@@ -32,7 +33,6 @@ const drawMainHeader = async (pdf, general) => {
 
       await new Promise((resolve) => {
         img.onload = () => {
-          // ancho 25mm, alto proporcional
           pdf.addImage(img, "JPEG", PAGE_WIDTH - 14 - 25, 4, 25, 14);
           resolve();
         };
@@ -119,7 +119,7 @@ export const generateReportPdf = async (report) => {
       ["Correo del técnico", general.technicianEmail || "—"],
     ],
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [240, 240, 240] },
+    headStyles: { fillColor: HEADER_PASTEL },
     columnStyles: {
       0: { cellWidth: 60 },
       1: { cellWidth: 120 },
@@ -146,7 +146,7 @@ export const generateReportPdf = async (report) => {
       head: [["#", "Parámetro", "Valor"]],
       body,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [240, 240, 240] },
+      headStyles: { fillColor: HEADER_PASTEL },
       columnStyles: {
         0: { cellWidth: 10 },
         1: { cellWidth: 90 },
@@ -158,9 +158,9 @@ export const generateReportPdf = async (report) => {
   }
 
   // ================================
-  // 3. Actividades e incidentes
+  // 3. Actividades
   // ================================
-  drawSectionHeader(pdf, "3. Actividades e incidentes", currentY);
+  drawSectionHeader(pdf, "3. Actividades", currentY);
   currentY += 4;
 
   if (activities.length > 0) {
@@ -175,7 +175,7 @@ export const generateReportPdf = async (report) => {
       head: [["Item", "Título de actividad", "Detalle de la actividad"]],
       body,
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [240, 240, 240] },
+      headStyles: { fillColor: HEADER_PASTEL },
       columnStyles: {
         0: { cellWidth: 12 },
         1: { cellWidth: 60 },
@@ -224,7 +224,7 @@ export const generateReportPdf = async (report) => {
       head: [["#", "Parámetro", "Valor"]],
       body: bodyAfter,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [240, 240, 240] },
+      headStyles: { fillColor: HEADER_PASTEL },
       columnStyles: {
         0: { cellWidth: 10 },
         1: { cellWidth: 90 },
@@ -261,7 +261,7 @@ export const generateReportPdf = async (report) => {
       ["VIN", equipment.vin || "—"],
     ],
     styles: { fontSize: 8 },
-    headStyles: { fillColor: [240, 240, 240] },
+    headStyles: { fillColor: HEADER_PASTEL },
     columnStyles: {
       0: { cellWidth: 60 },
       1: { cellWidth: 120 },
@@ -286,7 +286,6 @@ export const generateReportPdf = async (report) => {
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
 
-  // Recuadros para las firmas
   pdf.rect(MARGIN_X, ySignature, 80, 30);
   pdf.text("Firma técnico ASTAP", MARGIN_X + 40, ySignature + 26, {
     align: "center",
@@ -297,7 +296,6 @@ export const generateReportPdf = async (report) => {
     align: "center",
   });
 
-  // Firmas (si existen imágenes base64)
   if (report.digitalSignatures?.astap) {
     try {
       pdf.addImage(
@@ -328,9 +326,6 @@ export const generateReportPdf = async (report) => {
     }
   }
 
-  // ================================
-  // Guardar PDF
-  // ================================
   const code = general.internalCode || "sin-codigo";
   pdf.save(`ASTAP_Reporte_${code}.pdf`);
 };
