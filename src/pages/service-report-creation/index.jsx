@@ -1,420 +1,217 @@
-// src/pages/service-report-creation/index.jsx
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+// src/pages/pdf-report-preview/index.jsx
+import React from "react";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 import Button from "../../components/ui/Button";
 import { useReports } from "../../context/ReportContext";
 
-const emptyGeneralInfo = {
-  client: "",
-  serviceDate: "",
-  internalCode: "",
-  address: "",
-  reference: "",
-  technicalPersonnel: "",
-  technicianPhone: "",
-  technicianEmail: "",
+// Generador de PDF para informes ASTAP
+export const generateReportPdf = (report) => {
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pageWidth = 210;
+
+  const safeReport = report || {};
+  const general = safeReport.generalInfo || {};
+  const beforeTesting = safeReport.beforeTesting || [];
+  const activities = safeReport.activitiesIncidents || {};
+  const signatures = safeReport.digitalSignatures || {};
+
+  // Encabezado
+  pdf.setFontSize(18);
+  pdf.text("ASTAP - Reporte de Servicio", pageWidth / 2, 15, {
+    align: "center",
+  });
+
+  pdf.setFontSize(10);
+  pdf.text(`Fecha: ${general.serviceDate || "---"}`, 14, 25);
+  pdf.text(`Cliente: ${general.client || "---"}`, 14, 30);
+  pdf.text(
+    `Código Interno: ${general.internalCode || "---"}`,
+    14,
+    35
+  );
+
+  // Información general
+  pdf.setFontSize(14);
+  pdf.text("Información General", 14, 50);
+
+  pdf.setFontSize(10);
+  pdf.text(`Dirección: ${general.address || "---"}`, 14, 57);
+  pdf.text(`Referencia: ${general.reference || "---"}`, 14, 62);
+  pdf.text(
+    `Técnico: ${general.technicalPersonnel || "---"}`,
+    14,
+    67
+  );
+  pdf.text(
+    `Teléfono técnico: ${general.technicianPhone || "---"}`,
+    14,
+    72
+  );
+  pdf.text(
+    `Correo técnico: ${general.technicianEmail || "---"}`,
+    14,
+    77
+  );
+
+  // Pruebas antes del servicio
+  let currentY = 90;
+  if (beforeTesting.length > 0) {
+    pdf.setFontSize(14);
+    pdf.text("Pruebas Antes del Servicio", 14, currentY);
+
+    pdf.autoTable({
+      startY: currentY + 5,
+      head: [["Parámetro", "Valor"]],
+      body: beforeTesting.map((row) => [
+        row.parameter || "",
+        row.value || "",
+      ]),
+    });
+
+    currentY = pdf.lastAutoTable.finalY + 10;
+  } else {
+    currentY = 100;
+  }
+
+  // Actividades e incidentes
+  pdf.setFontSize(14);
+  pdf.text("Actividades e Incidentes", 14, currentY);
+
+  pdf.setFontSize(10);
+  const actText =
+    `Actividades: ${activities.activitiesDescription || "---"}`;
+  const incText =
+    `Incidentes: ${activities.incidentsDescription || "---"}`;
+
+  pdf.text(actText, 14, currentY + 7, { maxWidth: 180 });
+  pdf.text(incText, 14, currentY + 21, { maxWidth: 180 });
+
+  // Firmas
+  const signaturesBaseY = currentY + 45;
+  pdf.setFontSize(14);
+  pdf.text("Firmas", 14, signaturesBaseY);
+
+  pdf.setFontSize(10);
+  if (signatures.astap) {
+    pdf.text("Técnico ASTAP:", 14, signaturesBaseY + 10);
+    pdf.addImage(
+      signatures.astap,
+      "PNG",
+      14,
+      signaturesBaseY + 15,
+      40,
+      20
+    );
+  }
+
+  if (signatures.client) {
+    pdf.text("Cliente:", 120, signaturesBaseY + 10);
+    pdf.addImage(
+      signatures.client,
+      "PNG",
+      120,
+      signaturesBaseY + 15,
+      40,
+      20
+    );
+  }
+
+  // Guardar archivo
+  pdf.save(
+    `ASTAP_Reporte_${general.internalCode || "sin-codigo"}.pdf`
+  );
 };
 
-const ServiceReportCreation = () => {
-  const navigate = useNavigate();
-  const { currentReport, saveDraft } = useReports();
+const PDFReportPreview = () => {
+  const { currentReport, saveCompleted } = useReports();
 
-  const [generalInfo, setGeneralInfo] = useState(emptyGeneralInfo);
-  const [beforeTesting, setBeforeTesting] = useState([
-    { id: 1, parameter: "", value: "" },
-  ]);
-  const [activitiesDescription, setActivitiesDescription] = useState("");
-  const [incidentsDescription, setIncidentsDescription] = useState("");
-
-  // Al entrar a la pantalla, cargar datos del reporte actual (si existe)
-  useEffect(() => {
-    if (currentReport) {
-      setGeneralInfo({
-        ...emptyGeneralInfo,
-        ...(currentReport.generalInfo || {}),
-      });
-
-      setBeforeTesting(
-        (currentReport.beforeTesting || []).length > 0
-          ? currentReport.beforeTesting.map((row, idx) => ({
-              id: idx + 1,
-              parameter: row.parameter || "",
-              value: row.value || "",
-            }))
-          : [{ id: 1, parameter: "", value: "" }]
+  const handleGenerate = () => {
+    if (!currentReport) {
+      alert(
+        "No hay datos de reporte cargados. Guarda primero el formulario."
       );
-
-      setActivitiesDescription(
-        currentReport.activitiesIncidents?.activitiesDescription || ""
-      );
-      setIncidentsDescription(
-        currentReport.activitiesIncidents?.incidentsDescription || ""
-      );
+      return;
     }
-  }, [currentReport]);
 
-  // Handlers de formulario
-  const handleGeneralChange = (field, value) => {
-    setGeneralInfo((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    generateReportPdf(currentReport);
+    saveCompleted(currentReport); // marcar como completado en el historial
   };
 
-  const handleBeforeTestingChange = (id, field, value) => {
-    setBeforeTesting((rows) =>
-      rows.map((row) =>
-        row.id === id ? { ...row, [field]: value } : row
-      )
-    );
-  };
-
-  const handleAddBeforeRow = () => {
-    setBeforeTesting((rows) => [
-      ...rows,
-      { id: Date.now(), parameter: "", value: "" },
-    ]);
-  };
-
-  const handleRemoveBeforeRow = (id) => {
-    setBeforeTesting((rows) => {
-      const filtered = rows.filter((r) => r.id !== id);
-      return filtered.length > 0 ? filtered : [{ id: 1, parameter: "", value: "" }];
-    });
-  };
-
-  // Arma el objeto completo de reporte a partir del formulario
-  const buildReportObject = () => {
-    return {
-      ...currentReport,
-      generalInfo: { ...generalInfo },
-      beforeTesting: beforeTesting
-        .filter((r) => r.parameter || r.value)
-        .map((r) => ({ parameter: r.parameter, value: r.value })),
-      activitiesIncidents: {
-        activitiesDescription,
-        incidentsDescription,
-      },
-      // preservamos firmas, materiales, etc. que se llenan en otras pantallas
-      digitalSignatures: currentReport?.digitalSignatures || {},
-      materials: currentReport?.materials || [],
-    };
-  };
-
-  // Guardar como borrador
-  const handleSaveDraft = () => {
-    const report = buildReportObject();
-    saveDraft(report);
-    alert("Borrador guardado correctamente.");
-  };
-
-  // Guardar y pasar a firmas
-  const handleGoToSignatures = () => {
-    const report = buildReportObject();
-    saveDraft(report); // seguimos en borrador hasta que se genere/envíe
-    navigate("/digital-signature-capture");
-  };
+  const general = currentReport?.generalInfo || {};
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6">
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* Encabezado */}
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">
-              Crear Reporte de Servicio
+              Vista previa / generación de PDF
             </h1>
             <p className="text-sm text-slate-600">
-              Completa la información del servicio técnico realizado.
+              Verifica los datos del informe antes de generar el PDF final.
             </p>
           </div>
-          <div className="space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              iconName="Save"
-            >
-              Guardar borrador
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleGoToSignatures}
-              iconName="ArrowRight"
-            >
-              Continuar a Firma Digital
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            iconName="Download"
+            onClick={handleGenerate}
+          >
+            Generar y descargar PDF
+          </Button>
         </header>
 
-        {/* Card Información general */}
-        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Información general
-              </h2>
-              <p className="text-xs text-slate-500">
-                Datos básicos del servicio y cliente
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Cliente */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Cliente *
-              </label>
-              <input
-                type="text"
-                value={generalInfo.client}
-                onChange={(e) =>
-                  handleGeneralChange("client", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Nombre del cliente"
-              />
-            </div>
-
-            {/* Código interno */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Código interno *
-              </label>
-              <input
-                type="text"
-                value={generalInfo.internalCode}
-                onChange={(e) =>
-                  handleGeneralChange("internalCode", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Ej: P25-059"
-              />
-            </div>
-
-            {/* Fecha de servicio */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Fecha de servicio *
-              </label>
-              <input
-                type="date"
-                value={generalInfo.serviceDate}
-                onChange={(e) =>
-                  handleGeneralChange("serviceDate", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-              />
-            </div>
-
-            {/* Dirección */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Dirección *
-              </label>
-              <input
-                type="text"
-                value={generalInfo.address}
-                onChange={(e) =>
-                  handleGeneralChange("address", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Dirección del servicio"
-              />
-            </div>
-
-            {/* Referencia */}
-            <div className="md:col-span-2 flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Referencia
-              </label>
-              <input
-                type="text"
-                value={generalInfo.reference}
-                onChange={(e) =>
-                  handleGeneralChange("reference", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Descripción breve del problema o referencia"
-              />
-            </div>
-
-            {/* Técnico personal */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Técnico personal *
-              </label>
-              <input
-                type="text"
-                value={generalInfo.technicalPersonnel}
-                onChange={(e) =>
-                  handleGeneralChange(
-                    "technicalPersonnel",
-                    e.target.value
-                  )
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Nombre del técnico"
-              />
-            </div>
-
-            {/* Teléfono del técnico */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Teléfono del técnico
-              </label>
-              <input
-                type="tel"
-                value={generalInfo.technicianPhone}
-                onChange={(e) =>
-                  handleGeneralChange("technicianPhone", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Número de contacto"
-              />
-            </div>
-
-            {/* Correo del técnico */}
-            <div className="md:col-span-2 flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Correo del técnico
-              </label>
-              <input
-                type="email"
-                value={generalInfo.technicianEmail}
-                onChange={(e) =>
-                  handleGeneralChange("technicianEmail", e.target.value)
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="correo@astap.com"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Pruebas antes del servicio */}
-        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Pruebas Antes del Servicio
-              </h2>
-              <p className="text-xs text-slate-500">
-                Parámetros medidos antes de iniciar el servicio
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="xs"
-              onClick={handleAddBeforeRow}
-              iconName="Plus"
-            >
-              Agregar parámetro
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            {beforeTesting.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-12 gap-2 items-center"
-              >
-                <input
-                  className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                  placeholder="Parámetro"
-                  value={row.parameter}
-                  onChange={(e) =>
-                    handleBeforeTestingChange(
-                      row.id,
-                      "parameter",
-                      e.target.value
-                    )
-                  }
-                />
-                <input
-                  className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                  placeholder="Valor"
-                  value={row.value}
-                  onChange={(e) =>
-                    handleBeforeTestingChange(
-                      row.id,
-                      "value",
-                      e.target.value
-                    )
-                  }
-                />
-                <div className="col-span-2 flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    iconName="Trash2"
-                    onClick={() => handleRemoveBeforeRow(row.id)}
-                  >
-                    Quitar
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Actividades e incidentes */}
-        <section className="bg-white rounded-xl shadow border p-6 space-y-4 mb-16">
-          <div>
+        {/* Resumen rápido del informe */}
+        {currentReport ? (
+          <section className="bg-white rounded-xl shadow border p-6 space-y-4">
             <h2 className="text-lg font-semibold text-slate-900">
-              Actividades e Incidentes
+              Resumen del informe
             </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-slate-500 text-xs">Cliente</p>
+                <p className="font-medium">
+                  {general.client || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs">Código interno</p>
+                <p className="font-medium">
+                  {general.internalCode || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs">
+                  Fecha de servicio
+                </p>
+                <p className="font-medium">
+                  {general.serviceDate || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-slate-500 text-xs">Dirección</p>
+                <p className="font-medium">
+                  {general.address || "—"}
+                </p>
+              </div>
+            </div>
             <p className="text-xs text-slate-500">
-              Detalla las actividades realizadas e incidentes ocurridos
+              El PDF incluirá la información general, pruebas antes del
+              servicio, actividades, incidentes y firmas registradas.
             </p>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-700">
-              Actividades realizadas
-            </label>
-            <textarea
-              value={activitiesDescription}
-              onChange={(e) => setActivitiesDescription(e.target.value)}
-              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 min-h-[80px]"
-              placeholder="Describe las actividades realizadas durante el servicio"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-700">
-              Incidentes
-            </label>
-            <textarea
-              value={incidentsDescription}
-              onChange={(e) => setIncidentsDescription(e.target.value)}
-              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 min-h-[80px]"
-              placeholder="Registra cualquier incidente relevante"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              iconName="Save"
-            >
-              Guardar borrador
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleGoToSignatures}
-              iconName="ArrowRight"
-            >
-              Continuar a Firma Digital
-            </Button>
-          </div>
-        </section>
+          </section>
+        ) : (
+          <section className="bg-white rounded-xl shadow border p-6">
+            <p className="text-sm text-slate-600">
+              No hay informe actual cargado. Vuelve al listado y selecciona un
+              informe o completa uno nuevo.
+            </p>
+          </section>
+        )}
       </div>
     </div>
   );
 };
 
-export default ServiceReportCreation;
+export default PDFReportPreview;
