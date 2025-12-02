@@ -1,3 +1,4 @@
+// src/pages/service-report-creation/index.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
@@ -69,7 +70,7 @@ const ServiceReportCreation = () => {
   const [equipment, setEquipment] = useState(emptyEquipment);
 
   // =====================
-  // Cargar borrador si existe
+  // Cargar borrador si existe (solo UNA VEZ)
   // =====================
   useEffect(() => {
     if (!currentReport) return;
@@ -236,13 +237,6 @@ const ServiceReportCreation = () => {
     setCurrentReport && setCurrentReport(report);
     navigate("/digital-signature-capture");
   };
-
-  // Autosave ligero al cambiar datos (solo en memoria del contexto)
-  useEffect(() => {
-    const report = buildReportObject();
-    setCurrentReport && setCurrentReport(report);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generalInfo, beforeTesting, afterTesting, activitiesIncidents, equipment]);
 
   // =====================
   // Render
