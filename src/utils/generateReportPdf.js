@@ -1,16 +1,91 @@
 // src/utils/generateReportPdf.js
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import astapLogo from "../astap-logo.jpg"; // <<-- AQUÍ usa tu logo real
 
-// Generador de PDF para informes ASTAP
-export const generateReportPdf = (report) => {
+// Colores corporativos (aprox del logo)
+const BRAND_BLUE = { r: 4, g: 55, b: 94 }; // azul oscuro
+const PAGE_WIDTH = 210;
+const MARGIN_X = 14;
+
+// ===============================
+// Encabezado principal con logo
+// ===============================
+const drawMainHeader = async (pdf, general) => {
+  // Barra azul superior
+  pdf.setFillColor(BRAND_BLUE.r, BRAND_BLUE.g, BRAND_BLUE.b);
+  pdf.rect(0, 0, PAGE_WIDTH, 22, "F");
+
+  // Título blanco centrado
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text("ASTAP - Informe de Servicio", PAGE_WIDTH / 2, 12, {
+    align: "center",
+  });
+
+  // Logo (si se puede cargar)
+  try {
+    if (astapLogo) {
+      const img = new Image();
+      img.src = astapLogo;
+
+      await new Promise((resolve) => {
+        img.onload = () => {
+          // ancho 25mm, alto proporcional
+          pdf.addImage(img, "JPEG", PAGE_WIDTH - 14 - 25, 4, 25, 14);
+          resolve();
+        };
+        img.onerror = () => resolve();
+      });
+    }
+  } catch (e) {
+    console.warn("No se pudo cargar el logo ASTAP:", e);
+  }
+
+  // Texto pequeño bajo la barra
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+
+  const code = general?.internalCode || "—";
+  const client = general?.client || "—";
+  const date = general?.serviceDate || "—";
+
+  pdf.text(`Código interno: ${code}`, MARGIN_X, 26);
+  pdf.text(`Cliente: ${client}`, MARGIN_X, 31);
+  pdf.text(`Fecha de servicio: ${date}`, MARGIN_X, 36);
+
+  return 42; // pos Y donde empezamos el contenido
+};
+
+// ==================================
+// Encabezado de sección (barra azul)
+// ==================================
+const drawSectionHeader = (pdf, text, y) => {
+  const height = 7;
+  pdf.setFillColor(BRAND_BLUE.r, BRAND_BLUE.g, BRAND_BLUE.b);
+  pdf.rect(MARGIN_X, y - height + 1, PAGE_WIDTH - 2 * MARGIN_X, height, "F");
+
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(11);
+  pdf.text(text, MARGIN_X + 2, y);
+
+  // Volver a texto negro
+  pdf.setTextColor(0, 0, 0);
+};
+
+// ==================================
+// Generador de PDF principal
+// ==================================
+export const generateReportPdf = async (report) => {
   if (!report) {
     alert("No hay datos del reporte para generar el PDF.");
     return;
   }
 
   const pdf = new jsPDF("p", "mm", "a4");
-  const pageWidth = 210;
 
   const general = report.generalInfo || {};
   const beforeTesting = report.beforeTesting || [];
@@ -20,29 +95,13 @@ export const generateReportPdf = (report) => {
   const incidentsDescription = activitiesBlock.incidentsDescription || "";
   const equipment = report.equipment || {};
 
-  // =====================
-  //  Título / Encabezado
-  // =====================
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.text("ASTAP - Informe de Servicio", pageWidth / 2, 18, {
-    align: "center",
-  });
+  // 1) Encabezado principal
+  let currentY = await drawMainHeader(pdf, general);
 
-  pdf.setFontSize(9);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(`Código interno: ${general.internalCode || "—"}`, 14, 26);
-  pdf.text(`Cliente: ${general.client || "—"}`, 14, 31);
-  pdf.text(`Fecha de servicio: ${general.serviceDate || "—"}`, 14, 36);
-
-  let currentY = 42;
-
-  // =====================================================
-  //  1. Información general del servicio (cliente/técnico)
-  // =====================================================
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text("1. Información general del servicio", 14, currentY);
+  // ================================
+  // 1. Información general servicio
+  // ================================
+  drawSectionHeader(pdf, "1. Información general del servicio", currentY);
   currentY += 4;
 
   pdf.autoTable({
@@ -69,13 +128,11 @@ export const generateReportPdf = (report) => {
 
   currentY = pdf.lastAutoTable.finalY + 8;
 
-  // ======================================
-  //  2. Pruebas antes del servicio (tabla)
-  // ======================================
+  // ================================
+  // 2. Pruebas antes del servicio
+  // ================================
   if (beforeTesting.length > 0) {
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.text("2. Pruebas antes del servicio", 14, currentY);
+    drawSectionHeader(pdf, "2. Pruebas antes del servicio", currentY);
     currentY += 4;
 
     const body = beforeTesting.map((row, idx) => [
@@ -100,12 +157,10 @@ export const generateReportPdf = (report) => {
     currentY = pdf.lastAutoTable.finalY + 8;
   }
 
-  // ===========================
-  //  3. Actividades e incidentes
-  // ===========================
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text("3. Actividades e incidentes", 14, currentY);
+  // ================================
+  // 3. Actividades e incidentes
+  // ================================
+  drawSectionHeader(pdf, "3. Actividades e incidentes", currentY);
   currentY += 4;
 
   if (activities.length > 0) {
@@ -131,33 +186,31 @@ export const generateReportPdf = (report) => {
     currentY = pdf.lastAutoTable.finalY + 4;
   }
 
-  // Incidentes
+  // Incidentes (texto libre)
   if (incidentsDescription && incidentsDescription.trim() !== "") {
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
-    pdf.text("Incidentes:", 14, currentY);
+    pdf.text("Incidentes:", MARGIN_X, currentY);
     currentY += 4;
 
     pdf.setFont("helvetica", "normal");
     const incidentsLines = pdf.splitTextToSize(incidentsDescription, 180);
-    pdf.text(incidentsLines, 14, currentY);
+    pdf.text(incidentsLines, MARGIN_X, currentY);
     currentY += incidentsLines.length * 4 + 4;
   } else {
     currentY += 2;
   }
 
-  // =======================================
-  //  4. Pruebas después del servicio (tabla)
-  // =======================================
+  // ================================
+  // 4. Pruebas después del servicio
+  // ================================
   if (afterTesting.length > 0) {
     if (currentY > 260) {
       pdf.addPage();
       currentY = 20;
     }
 
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.text("4. Pruebas después del servicio", 14, currentY);
+    drawSectionHeader(pdf, "4. Pruebas después del servicio", currentY);
     currentY += 4;
 
     const bodyAfter = afterTesting.map((row, idx) => [
@@ -182,17 +235,15 @@ export const generateReportPdf = (report) => {
     currentY = pdf.lastAutoTable.finalY + 8;
   }
 
-  // =====================
-  //  5. Datos del equipo
-  // =====================
+  // ================================
+  // 5. Datos del equipo
+  // ================================
   if (currentY > 260) {
     pdf.addPage();
     currentY = 20;
   }
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text("5. Datos del equipo", 14, currentY);
+  drawSectionHeader(pdf, "5. Datos del equipo", currentY);
   currentY += 4;
 
   pdf.autoTable({
@@ -219,41 +270,40 @@ export const generateReportPdf = (report) => {
 
   currentY = pdf.lastAutoTable.finalY + 12;
 
-  // ============
-  //  6. Firmas
-  // ============
+  // ================================
+  // 6. Firmas
+  // ================================
   if (currentY > 230) {
     pdf.addPage();
     currentY = 40;
   }
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text("6. Firmas", 14, currentY);
+  drawSectionHeader(pdf, "6. Firmas", currentY);
   currentY += 8;
 
   const ySignature = currentY;
 
-  // Recuadros de firmas
-  pdf.setFontSize(9);
   pdf.setFont("helvetica", "normal");
-  // Técnico ASTAP
-  pdf.rect(14, ySignature, 80, 30);
-  pdf.text("Firma técnico ASTAP", 14 + 40, ySignature + 26, {
+  pdf.setFontSize(9);
+
+  // Recuadros para las firmas
+  pdf.rect(MARGIN_X, ySignature, 80, 30);
+  pdf.text("Firma técnico ASTAP", MARGIN_X + 40, ySignature + 26, {
     align: "center",
   });
 
-  // Cliente
   pdf.rect(110, ySignature, 80, 30);
-  pdf.text("Firma cliente", 110 + 40, ySignature + 26, { align: "center" });
+  pdf.text("Firma cliente", 110 + 40, ySignature + 26, {
+    align: "center",
+  });
 
-  // Firmas como imágenes (si existen)
+  // Firmas (si existen imágenes base64)
   if (report.digitalSignatures?.astap) {
     try {
       pdf.addImage(
         report.digitalSignatures.astap,
         "PNG",
-        14 + 5,
+        MARGIN_X + 5,
         ySignature + 5,
         70,
         20
@@ -278,9 +328,9 @@ export const generateReportPdf = (report) => {
     }
   }
 
-  // =====================
-  //  Guardar PDF
-  // =====================
+  // ================================
+  // Guardar PDF
+  // ================================
   const code = general.internalCode || "sin-codigo";
   pdf.save(`ASTAP_Reporte_${code}.pdf`);
 };
