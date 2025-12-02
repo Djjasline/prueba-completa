@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Icon from "../../components/AppIcon";
 import { useReports } from "../../context/ReportContext";
-import { generateReportPdf } from "../../utils/pdfGenerator";
+import { generateReportPdf } from "../../utils/generateReportPdf";
 
 const PDFReportPreview = () => {
   const navigate = useNavigate();
@@ -13,7 +13,8 @@ const PDFReportPreview = () => {
   const general = currentReport?.generalInfo || {};
 
   const handleBack = () => {
-    navigate(-1); // volver a la pantalla anterior (firma o formulario)
+    // volver a la pantalla anterior (firma o formulario)
+    navigate(-1);
   };
 
   const handleGeneratePdf = () => {
