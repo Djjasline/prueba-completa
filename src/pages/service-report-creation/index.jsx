@@ -1,287 +1,224 @@
-// src/pages/service-report-creation/index.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/ui/Button";
+import Icon from "../../components/AppIcon";
 import { useReports } from "../../context/ReportContext";
 
+// =====================
+//  Objetos base
+// =====================
 const emptyGeneralInfo = {
+  // Cliente (empresa)
   client: "",
-  serviceDate: "",
-  internalCode: "",
-  address: "",
-  reference: "", 
+  // Datos de contacto del cliente
   clientContact: "",
   clientEmail: "",
   clientRole: "",
+  // Datos del servicio
+  serviceDate: "",
+  internalCode: "",
+  address: "",
+  reference: "",
+  // Datos del técnico
   technicalPersonnel: "",
   technicianPhone: "",
   technicianEmail: "",
 };
 
+const emptyTestingRow = {
+  parameter: "",
+  value: "",
+};
+
+const emptyActivitiesIncidents = {
+  activitiesDescription: "",
+  incidentsDescription: "",
+};
+
+const emptyEquipment = {
+  unit: "",
+  brand: "",
+  model: "",
+  serial: "",
+  plate: "",
+  location: "",
+};
+
+// =====================
+//  Componente principal
+// =====================
 const ServiceReportCreation = () => {
   const navigate = useNavigate();
-  const { currentReport, saveDraft } = useReports();
+  const { currentReport, saveDraft, setCurrentReport } = useReports
+    ? useReports()
+    : { currentReport: null, saveDraft: () => {}, setCurrentReport: () => {} };
 
   const [generalInfo, setGeneralInfo] = useState(emptyGeneralInfo);
-  const [beforeTesting, setBeforeTesting] = useState([
-    { id: 1, parameter: "", value: "" },
-  ]);
-  const [activitiesDescription, setActivitiesDescription] = useState("");
-  const [incidentsDescription, setIncidentsDescription] = useState("");
+  const [beforeTesting, setBeforeTesting] = useState([emptyTestingRow]);
+  const [afterTesting, setAfterTesting] = useState([emptyTestingRow]);
+  const [activitiesIncidents, setActivitiesIncidents] = useState(
+    emptyActivitiesIncidents
+  );
+  const [equipment, setEquipment] = useState(emptyEquipment);
 
-  // Materiales
-  const [materials, setMaterials] = useState([
-    { id: 1, code: "", description: "", quantity: "", unit: "" },
-  ]);
-
-  // Para autosave
-  const [lastSavedAt, setLastSavedAt] = useState(null);
-  const autoSaveTimerRef = useRef(null);
-  const isInitialLoadRef = useRef(true);
-
-  // Cargar datos del reporte actual (si existe)
+  // =====================
+  // Cargar borrador si existe
+  // =====================
   useEffect(() => {
-    if (currentReport) {
-      setGeneralInfo({
-        ...emptyGeneralInfo,
-        ...(currentReport.generalInfo || {}),
-      });
+    if (!currentReport) return;
 
-      setBeforeTesting(
-        (currentReport.beforeTesting || []).length > 0
-          ? currentReport.beforeTesting.map((row, idx) => ({
-              id: idx + 1,
-              parameter: row.parameter || "",
-              value: row.value || "",
-            }))
-          : [{ id: 1, parameter: "", value: "" }]
-      );
-
-      setActivitiesDescription(
-        currentReport.activitiesIncidents?.activitiesDescription || ""
-      );
-      setIncidentsDescription(
-        currentReport.activitiesIncidents?.incidentsDescription || ""
-      );
-
-      setMaterials(
-        (currentReport.materials || []).length > 0
-          ? currentReport.materials.map((m, idx) => ({
-              id: idx + 1,
-              code: m.code || "",
-              description: m.description || "",
-              quantity: m.quantity || "",
-              unit: m.unit || "",
-            }))
-          : [{ id: 1, code: "", description: "", quantity: "", unit: "" }]
-      );
-    }
-
-    // La primera vez que cargamos desde currentReport no queremos disparar autosave
-    isInitialLoadRef.current = true;
-    setLastSavedAt(currentReport?.updatedAt || null);
+    const r = currentReport;
+    setGeneralInfo({ ...emptyGeneralInfo, ...(r.generalInfo || {}) });
+    setBeforeTesting(
+      r.beforeTesting && r.beforeTesting.length > 0
+        ? r.beforeTesting
+        : [emptyTestingRow]
+    );
+    setAfterTesting(
+      r.afterTesting && r.afterTesting.length > 0
+        ? r.afterTesting
+        : [emptyTestingRow]
+    );
+    setActivitiesIncidents({
+      ...emptyActivitiesIncidents,
+      ...(r.activitiesIncidents || {}),
+    });
+    setEquipment({ ...emptyEquipment, ...(r.equipment || {}) });
   }, [currentReport]);
 
-  // Handlers de formulario general
+  // =====================
+  // Handlers
+  // =====================
+
   const handleGeneralChange = (field, value) => {
-    setGeneralInfo((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setGeneralInfo((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Pruebas antes del servicio
-  const handleBeforeTestingChange = (id, field, value) => {
-    setBeforeTesting((rows) =>
-      rows.map((row) =>
-        row.id === id ? { ...row, [field]: value } : row
+  const handleBeforeChange = (index, field, value) => {
+    setBeforeTesting((prev) =>
+      prev.map((row, i) =>
+        i === index ? { ...row, [field]: value } : row
       )
     );
   };
 
-  const handleAddBeforeRow = () => {
-    setBeforeTesting((rows) => [
-      ...rows,
-      { id: Date.now(), parameter: "", value: "" },
-    ]);
-  };
-
-  const handleRemoveBeforeRow = (id) => {
-    setBeforeTesting((rows) => {
-      const filtered = rows.filter((r) => r.id !== id);
-      return filtered.length > 0 ? filtered : [{ id: 1, parameter: "", value: "" }];
-    });
-  };
-
-  // Materiales
-  const handleMaterialChange = (id, field, value) => {
-    setMaterials((rows) =>
-      rows.map((row) =>
-        row.id === id ? { ...row, [field]: value } : row
+  const handleAfterChange = (index, field, value) => {
+    setAfterTesting((prev) =>
+      prev.map((row, i) =>
+        i === index ? { ...row, [field]: value } : row
       )
     );
   };
 
-  const handleAddMaterialRow = () => {
-    setMaterials((rows) => [
-      ...rows,
-      { id: Date.now(), code: "", description: "", quantity: "", unit: "" },
-    ]);
+  const handleActivitiesChange = (field, value) => {
+    setActivitiesIncidents((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleRemoveMaterialRow = (id) => {
-    setMaterials((rows) => {
-      const filtered = rows.filter((r) => r.id !== id);
-      return filtered.length > 0
-        ? filtered
-        : [{ id: 1, code: "", description: "", quantity: "", unit: "" }];
-    });
+  const handleEquipmentChange = (field, value) => {
+    setEquipment((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Arma el objeto completo de reporte a partir del formulario
-  const buildReportObject = () => {
-    return {
-      ...currentReport,
-      generalInfo: { ...generalInfo },
-      beforeTesting: beforeTesting
-        .filter((r) => r.parameter || r.value)
-        .map((r) => ({ parameter: r.parameter, value: r.value })),
-      activitiesIncidents: {
-        activitiesDescription,
-        incidentsDescription,
-      },
-      materials: materials
-        .filter(
-          (m) => m.code || m.description || m.quantity || m.unit
-        )
-        .map((m) => ({
-          code: m.code,
-          description: m.description,
-          quantity: m.quantity,
-          unit: m.unit,
-        })),
-      digitalSignatures: currentReport?.digitalSignatures || {},
-    };
-  };
+  const addBeforeRow = () =>
+    setBeforeTesting((prev) => [...prev, { ...emptyTestingRow }]);
 
-  // Guardar como borrador (manual)
+  const removeBeforeRow = (index) =>
+    setBeforeTesting((prev) =>
+      prev.length === 1 ? prev : prev.filter((_, i) => i !== index)
+    );
+
+  const addAfterRow = () =>
+    setAfterTesting((prev) => [...prev, { ...emptyTestingRow }]);
+
+  const removeAfterRow = (index) =>
+    setAfterTesting((prev) =>
+      prev.length === 1 ? prev : prev.filter((_, i) => i !== index)
+    );
+
+  // Construir objeto de reporte
+  const buildReportObject = () => ({
+    id: currentReport?.id || Date.now().toString(),
+    status: currentReport?.status || "draft",
+    generalInfo,
+    beforeTesting: beforeTesting.filter(
+      (r) => r.parameter.trim() !== "" || r.value.trim() !== ""
+    ),
+    afterTesting: afterTesting.filter(
+      (r) => r.parameter.trim() !== "" || r.value.trim() !== ""
+    ),
+    activitiesIncidents,
+    equipment,
+    digitalSignatures: currentReport?.digitalSignatures || {
+      astap: null,
+      client: null,
+    },
+    createdAt: currentReport?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
   const handleSaveDraft = () => {
     const report = buildReportObject();
-    const saved = saveDraft(report);
-    setLastSavedAt(saved.updatedAt || new Date().toISOString());
-    alert("Borrador guardado correctamente.");
+    try {
+      saveDraft && saveDraft(report);
+      setCurrentReport && setCurrentReport(report);
+      alert("Borrador guardado correctamente.");
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar el borrador.");
+    }
   };
 
-  // Guardar y pasar a firmas
-  const handleGoToSignatures = () => {
+  const handleNextToSignature = () => {
     const report = buildReportObject();
-    const saved = saveDraft(report);
-    setLastSavedAt(saved.updatedAt || new Date().toISOString());
+    setCurrentReport && setCurrentReport(report);
     navigate("/digital-signature-capture");
   };
 
-  // 🔁 AUTOSAVE: cuando cambie algo del formulario, guardamos automáticamente
+  // Autosave ligero al cambiar datos (solo en memoria del contexto)
   useEffect(() => {
-    // Evitar autosave inmediato después de cargar datos iniciales
-    if (isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
-      return;
-    }
-
-    // Limpiamos cualquier timer previo
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    // Programar guardado después de 4 segundos sin cambios
-    autoSaveTimerRef.current = setTimeout(() => {
-      const report = buildReportObject();
-      const saved = saveDraft(report);
-      setLastSavedAt(saved.updatedAt || new Date().toISOString());
-      // No mostramos alert aquí para que no moleste al técnico
-      console.log("Autosave del informe", saved.id);
-    }, 4000);
-
-    // Cleanup
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
+    const report = buildReportObject();
+    setCurrentReport && setCurrentReport(report);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    generalInfo,
-    beforeTesting,
-    materials,
-    activitiesDescription,
-    incidentsDescription,
-  ]);
+  }, [generalInfo, beforeTesting, afterTesting, activitiesIncidents, equipment]);
 
-  const formatLastSaved = () => {
-    if (!lastSavedAt) return "Sin guardar todavía";
-    try {
-      const d = new Date(lastSavedAt);
-      return `Último guardado: ${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
-    } catch {
-      return `Último guardado: ${lastSavedAt}`;
-    }
-  };
+  // =====================
+  // Render
+  // =====================
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6">
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Encabezado */}
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {/* Encabezado superior */}
+        <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">
               Crear Reporte de Servicio
             </h1>
             <p className="text-sm text-slate-600">
-              Completa la información del servicio técnico realizado.
+              Complete la información general, las pruebas realizadas, las
+              actividades y los datos del equipo antes de pasar a la firma
+              digital.
             </p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <span className="text-[11px] text-slate-500 italic">
-              {formatLastSaved()}
-            </span>
-            <div className="space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSaveDraft}
-                iconName="Save"
-              >
-                Guardar borrador
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleGoToSignatures}
-                iconName="ArrowRight"
-              >
-                Continuar a Firma Digital
-              </Button>
-            </div>
           </div>
         </header>
 
-        {/* Información general */}
+        {/* 1. Información general */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Información general
+                1. Información general del servicio
               </h2>
               <p className="text-xs text-slate-500">
-                Datos básicos del servicio y cliente
+                Datos del cliente, contacto, servicio y técnico responsable.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Cliente */}
-            <div className="flex flex-col gap-1">
+            {/* Cliente (empresa) */}
+            <div className="md:col-span-2 flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-700">
-                Cliente *
+                Cliente (empresa) *
               </label>
               <input
                 type="text"
@@ -290,7 +227,61 @@ const ServiceReportCreation = () => {
                   handleGeneralChange("client", e.target.value)
                 }
                 className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Nombre del cliente"
+                placeholder="Nombre de la empresa"
+              />
+            </div>
+
+            {/* Contacto del cliente */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Contacto del cliente
+              </label>
+              <input
+                type="text"
+                value={generalInfo.clientContact}
+                onChange={(e) =>
+                  handleGeneralChange(
+                    "clientContact",
+                    e.target.value
+                  )
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Nombre de la persona de contacto"
+              />
+            </div>
+
+            {/* Cargo del cliente */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Cargo del cliente
+              </label>
+              <input
+                type="text"
+                value={generalInfo.clientRole}
+                onChange={(e) =>
+                  handleGeneralChange("clientRole", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Ej: Jefe de mantenimiento"
+              />
+            </div>
+
+            {/* Correo del cliente */}
+            <div className="md:col-span-2 flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Correo del cliente
+              </label>
+              <input
+                type="email"
+                value={generalInfo.clientEmail}
+                onChange={(e) =>
+                  handleGeneralChange(
+                    "clientEmail",
+                    e.target.value
+                  )
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="correo@cliente.com"
               />
             </div>
 
@@ -303,7 +294,10 @@ const ServiceReportCreation = () => {
                 type="text"
                 value={generalInfo.internalCode}
                 onChange={(e) =>
-                  handleGeneralChange("internalCode", e.target.value)
+                  handleGeneralChange(
+                    "internalCode",
+                    e.target.value
+                  )
                 }
                 className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
                 placeholder="Ej: P25-059"
@@ -319,14 +313,17 @@ const ServiceReportCreation = () => {
                 type="date"
                 value={generalInfo.serviceDate}
                 onChange={(e) =>
-                  handleGeneralChange("serviceDate", e.target.value)
+                  handleGeneralChange(
+                    "serviceDate",
+                    e.target.value
+                  )
                 }
                 className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
               />
             </div>
 
             {/* Dirección */}
-            <div className="flex flex-col gap-1">
+            <div className="md:col-span-2 flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-700">
                 Dirección *
               </label>
@@ -350,7 +347,10 @@ const ServiceReportCreation = () => {
                 type="text"
                 value={generalInfo.reference}
                 onChange={(e) =>
-                  handleGeneralChange("reference", e.target.value)
+                  handleGeneralChange(
+                    "reference",
+                    e.target.value
+                  )
                 }
                 className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
                 placeholder="Descripción breve del problema o referencia"
@@ -360,7 +360,7 @@ const ServiceReportCreation = () => {
             {/* Técnico personal */}
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-700">
-                Técnico personal *
+                Técnico responsable *
               </label>
               <input
                 type="text"
@@ -416,205 +416,308 @@ const ServiceReportCreation = () => {
           </div>
         </section>
 
-        {/* Pruebas antes del servicio */}
+        {/* 2. Pruebas antes del servicio */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Pruebas Antes del Servicio
+                2. Pruebas antes del servicio
               </h2>
               <p className="text-xs text-slate-500">
-                Parámetros medidos antes de iniciar el servicio
+                Registre los parámetros medidos antes de iniciar el servicio.
               </p>
             </div>
             <Button
               variant="outline"
-              size="xs"
-              onClick={handleAddBeforeRow}
+              size="sm"
               iconName="Plus"
+              onClick={addBeforeRow}
             >
               Agregar parámetro
             </Button>
           </div>
 
-          <div className="space-y-2">
-            {beforeTesting.map((row) => (
+          <div className="space-y-3">
+            {beforeTesting.map((row, index) => (
               <div
-                key={row.id}
+                key={`before-${index}`}
                 className="grid grid-cols-12 gap-2 items-center"
               >
                 <input
+                  type="text"
                   className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
                   placeholder="Parámetro"
                   value={row.parameter}
                   onChange={(e) =>
-                    handleBeforeTestingChange(
-                      row.id,
+                    handleBeforeChange(
+                      index,
                       "parameter",
                       e.target.value
                     )
                   }
                 />
                 <input
+                  type="text"
                   className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
                   placeholder="Valor"
                   value={row.value}
                   onChange={(e) =>
-                    handleBeforeTestingChange(
-                      row.id,
-                      "value",
-                      e.target.value
-                    )
+                    handleBeforeChange(index, "value", e.target.value)
                   }
                 />
-                <div className="col-span-2 flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    iconName="Trash2"
-                    onClick={() => handleRemoveBeforeRow(row.id)}
-                  >
-                    Quitar
-                  </Button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => removeBeforeRow(index)}
+                  className="col-span-2 inline-flex items-center justify-center rounded-md border border-red-200 px-2 py-2 text-xs text-red-600 hover:bg-red-50"
+                >
+                  <Icon name="Trash2" size={14} className="mr-1" />
+                  Eliminar
+                </button>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Materiales utilizados */}
+        {/* 3. Pruebas después del servicio */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Materiales utilizados
+                3. Pruebas después del servicio
               </h2>
               <p className="text-xs text-slate-500">
-                Registra los materiales, repuestos o insumos usados en el
+                Registre los parámetros medidos después de completar el
                 servicio.
               </p>
             </div>
             <Button
               variant="outline"
-              size="xs"
-              onClick={handleAddMaterialRow}
+              size="sm"
               iconName="Plus"
+              onClick={addAfterRow}
             >
-              Agregar material
+              Agregar parámetro
             </Button>
           </div>
 
-          <div className="space-y-2">
-            {materials.map((row) => (
+          <div className="space-y-3">
+            {afterTesting.map((row, index) => (
               <div
-                key={row.id}
+                key={`after-${index}`}
                 className="grid grid-cols-12 gap-2 items-center"
               >
                 <input
-                  className="col-span-2 border rounded-md px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-slate-900/20"
-                  placeholder="Código"
-                  value={row.code}
+                  type="text"
+                  className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Parámetro"
+                  value={row.parameter}
                   onChange={(e) =>
-                    handleMaterialChange(row.id, "code", e.target.value)
-                  }
-                />
-                <input
-                  className="col-span-6 border rounded-md px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-slate-900/20"
-                  placeholder="Descripción del material"
-                  value={row.description}
-                  onChange={(e) =>
-                    handleMaterialChange(
-                      row.id,
-                      "description",
+                    handleAfterChange(
+                      index,
+                      "parameter",
                       e.target.value
                     )
                   }
                 />
                 <input
-                  className="col-span-2 border rounded-md px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-slate-900/20"
-                  placeholder="Cant."
-                  value={row.quantity}
+                  type="text"
+                  className="col-span-5 border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Valor"
+                  value={row.value}
                   onChange={(e) =>
-                    handleMaterialChange(
-                      row.id,
-                      "quantity",
-                      e.target.value
-                    )
+                    handleAfterChange(index, "value", e.target.value)
                   }
                 />
-                <input
-                  className="col-span-1 border rounded-md px-2 py-2 text-xs outline-none focus:ring-2 focus:ring-slate-900/20"
-                  placeholder="Und."
-                  value={row.unit}
-                  onChange={(e) =>
-                    handleMaterialChange(row.id, "unit", e.target.value)
-                  }
-                />
-                <div className="col-span-1 flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    iconName="Trash2"
-                    onClick={() => handleRemoveMaterialRow(row.id)}
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => removeAfterRow(index)}
+                  className="col-span-2 inline-flex items-center justify-center rounded-md border border-red-200 px-2 py-2 text-xs text-red-600 hover:bg-red-50"
+                >
+                  <Icon name="Trash2" size={14} className="mr-1" />
+                  Eliminar
+                </button>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Actividades e incidentes */}
-        <section className="bg-white rounded-xl shadow border p-6 space-y-4 mb-16">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              Actividades e Incidentes
-            </h2>
-            <p className="text-xs text-slate-500">
-              Detalla las actividades realizadas e incidentes ocurridos
-            </p>
+        {/* 4. Actividades */}
+        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                4. Actividades
+              </h2>
+              <p className="text-xs text-slate-500">
+                Detalle las actividades realizadas y, si aplica, incidentes
+                ocurridos durante el servicio.
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-700">
-              Actividades realizadas
-            </label>
-            <textarea
-              value={activitiesDescription}
-              onChange={(e) => setActivitiesDescription(e.target.value)}
-              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 min-h-[80px]"
-              placeholder="Describe las actividades realizadas durante el servicio"
-            />
+          <div className="space-y-4">
+            {/* Actividades realizadas */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Actividades realizadas
+              </label>
+              <textarea
+                rows={4}
+                value={activitiesIncidents.activitiesDescription}
+                onChange={(e) =>
+                  handleActivitiesChange(
+                    "activitiesDescription",
+                    e.target.value
+                  )
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
+                placeholder="Describa las actividades realizadas durante el servicio."
+              />
+            </div>
+
+            {/* Incidentes */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Incidentes
+              </label>
+              <textarea
+                rows={3}
+                value={activitiesIncidents.incidentsDescription}
+                onChange={(e) =>
+                  handleActivitiesChange(
+                    "incidentsDescription",
+                    e.target.value
+                  )
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
+                placeholder="Registra cualquier incidente relevante (si no hubo, puede dejarlo en blanco)."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* 5. Datos del equipo */}
+        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                5. Datos del equipo
+              </h2>
+              <p className="text-xs text-slate-500">
+                Información de la unidad/equipo sobre el cual se realizó el
+                servicio.
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-700">
-              Incidentes
-            </label>
-            <textarea
-              value={incidentsDescription}
-              onChange={(e) => setIncidentsDescription(e.target.value)}
-              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 min-h-[80px]"
-              placeholder="Registra cualquier incidente relevante"
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Equipo / Unidad
+              </label>
+              <input
+                type="text"
+                value={equipment.unit}
+                onChange={(e) =>
+                  handleEquipmentChange("unit", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Nombre o identificación del equipo"
+              />
+            </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              iconName="Save"
-            >
-              Guardar borrador
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleGoToSignatures}
-              iconName="ArrowRight"
-            >
-              Continuar a Firma Digital
-            </Button>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Marca
+              </label>
+              <input
+                type="text"
+                value={equipment.brand}
+                onChange={(e) =>
+                  handleEquipmentChange("brand", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Modelo
+              </label>
+              <input
+                type="text"
+                value={equipment.model}
+                onChange={(e) =>
+                  handleEquipmentChange("model", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Serie
+              </label>
+              <input
+                type="text"
+                value={equipment.serial}
+                onChange={(e) =>
+                  handleEquipmentChange("serial", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-700">
+                Placa / Código interno
+              </label>
+              <input
+                type="text"
+                value={equipment.plate}
+                onChange={(e) =>
+                  handleEquipmentChange("plate", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1 md:col-span-2">
+              <label className="text-xs font-medium text-slate-700">
+                Ubicación / Área
+              </label>
+              <input
+                type="text"
+                value={equipment.location}
+                onChange={(e) =>
+                  handleEquipmentChange("location", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Ej: Planta norte, pozo 3, sala de bombas"
+              />
+            </div>
           </div>
+        </section>
+
+        {/* Barra inferior de acciones */}
+        <section className="flex flex-col md:flex-row items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            className="inline-flex items-center text-xs text-slate-600 hover:text-slate-900"
+          >
+            <Icon name="Save" size={14} className="mr-1" />
+            Guardar borrador
+          </button>
+
+          <Button
+            size="sm"
+            iconName="ArrowRight"
+            iconPosition="right"
+            onClick={handleNextToSignature}
+          >
+            Continuar en Firma Digital
+          </Button>
         </section>
       </div>
     </div>
