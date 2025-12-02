@@ -31,7 +31,14 @@ const emptyTestingRow = {
 };
 
 const emptyActivitiesIncidents = {
-  activitiesDescription: "",
+  // Lista de actividades: cada una con título y detalle
+  activities: [
+    {
+      title: "",
+      detail: "",
+    },
+  ],
+  // Resumen de incidentes
   incidentsDescription: "",
 };
 
@@ -68,21 +75,32 @@ const ServiceReportCreation = () => {
     if (!currentReport) return;
 
     const r = currentReport;
+
     setGeneralInfo({ ...emptyGeneralInfo, ...(r.generalInfo || {}) });
+
     setBeforeTesting(
       r.beforeTesting && r.beforeTesting.length > 0
         ? r.beforeTesting
         : [emptyTestingRow]
     );
+
     setAfterTesting(
       r.afterTesting && r.afterTesting.length > 0
         ? r.afterTesting
         : [emptyTestingRow]
     );
+
+    const existingActivities = r.activitiesIncidents || {};
     setActivitiesIncidents({
-      ...emptyActivitiesIncidents,
-      ...(r.activitiesIncidents || {}),
+      activities:
+        existingActivities.activities &&
+        existingActivities.activities.length > 0
+          ? existingActivities.activities
+          : emptyActivitiesIncidents.activities,
+      incidentsDescription:
+        existingActivities.incidentsDescription || "",
     });
+
     setEquipment({ ...emptyEquipment, ...(r.equipment || {}) });
   }, [currentReport]);
 
@@ -111,7 +129,40 @@ const ServiceReportCreation = () => {
   };
 
   const handleActivitiesChange = (field, value) => {
+    // Por ahora solo usamos esto para incidentsDescription
     setActivitiesIncidents((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleActivityRowChange = (index, field, value) => {
+    setActivitiesIncidents((prev) => {
+      const list = prev.activities || [];
+      const updated = list.map((act, i) =>
+        i === index ? { ...act, [field]: value } : act
+      );
+      return { ...prev, activities: updated };
+    });
+  };
+
+  const addActivityRow = () => {
+    setActivitiesIncidents((prev) => ({
+      ...prev,
+      activities: [
+        ...(prev.activities || []),
+        {
+          title: "",
+          detail: "",
+        },
+      ],
+    }));
+  };
+
+  const removeActivityRow = (index) => {
+    setActivitiesIncidents((prev) => {
+      const list = prev.activities || [];
+      if (list.length === 1) return prev; // deja siempre al menos una
+      const updated = list.filter((_, i) => i !== index);
+      return { ...prev, activities: updated };
+    });
   };
 
   const handleEquipmentChange = (field, value) => {
@@ -135,25 +186,38 @@ const ServiceReportCreation = () => {
     );
 
   // Construir objeto de reporte
-  const buildReportObject = () => ({
-    id: currentReport?.id || Date.now().toString(),
-    status: currentReport?.status || "draft",
-    generalInfo,
-    beforeTesting: beforeTesting.filter(
+  const buildReportObject = () => {
+    const cleanedBefore = beforeTesting.filter(
       (r) => r.parameter.trim() !== "" || r.value.trim() !== ""
-    ),
-    afterTesting: afterTesting.filter(
+    );
+    const cleanedAfter = afterTesting.filter(
       (r) => r.parameter.trim() !== "" || r.value.trim() !== ""
-    ),
-    activitiesIncidents,
-    equipment,
-    digitalSignatures: currentReport?.digitalSignatures || {
-      astap: null,
-      client: null,
-    },
-    createdAt: currentReport?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
+    );
+    const cleanedActivities = (activitiesIncidents.activities || []).filter(
+      (a) =>
+        (a.title && a.title.trim() !== "") ||
+        (a.detail && a.detail.trim() !== "")
+    );
+
+    return {
+      id: currentReport?.id || Date.now().toString(),
+      status: currentReport?.status || "draft",
+      generalInfo,
+      beforeTesting: cleanedBefore,
+      afterTesting: cleanedAfter,
+      activitiesIncidents: {
+        ...activitiesIncidents,
+        activities: cleanedActivities,
+      },
+      equipment,
+      digitalSignatures: currentReport?.digitalSignatures || {
+        astap: null,
+        client: null,
+      },
+      createdAt: currentReport?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  };
 
   const handleSaveDraft = () => {
     const report = buildReportObject();
@@ -541,7 +605,7 @@ const ServiceReportCreation = () => {
           </div>
         </section>
 
-        {/* 4. Actividades */}
+        {/* 4. Actividades (tabla con ítems) */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -549,50 +613,116 @@ const ServiceReportCreation = () => {
                 4. Actividades
               </h2>
               <p className="text-xs text-slate-500">
-                Detalle las actividades realizadas y, si aplica, incidentes
-                ocurridos durante el servicio.
+                Registre cada actividad realizada. Puede agregar tantos ítems
+                como sea necesario.
               </p>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              iconName="Plus"
+              onClick={addActivityRow}
+            >
+              Agregar actividad
+            </Button>
           </div>
 
-          <div className="space-y-4">
-            {/* Actividades realizadas */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Actividades realizadas
-              </label>
-              <textarea
-                rows={4}
-                value={activitiesIncidents.activitiesDescription}
-                onChange={(e) =>
-                  handleActivitiesChange(
-                    "activitiesDescription",
-                    e.target.value
-                  )
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
-                placeholder="Describa las actividades realizadas durante el servicio."
-              />
+          <div className="border rounded-lg overflow-hidden">
+            {/* Encabezado de tabla */}
+            <div className="grid grid-cols-12 bg-slate-100 border-b text-xs font-semibold text-slate-700">
+              <div className="col-span-2 flex items-center justify-center border-r py-2">
+                Ítem
+              </div>
+              <div className="col-span-10 flex items-center justify-center py-2">
+                Descripción de actividades
+              </div>
             </div>
 
-            {/* Incidentes */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-700">
-                Incidentes
-              </label>
-              <textarea
-                rows={3}
-                value={activitiesIncidents.incidentsDescription}
-                onChange={(e) =>
-                  handleActivitiesChange(
-                    "incidentsDescription",
-                    e.target.value
-                  )
-                }
-                className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
-                placeholder="Registra cualquier incidente relevante (si no hubo, puede dejarlo en blanco)."
-              />
-            </div>
+            {/* Filas de actividades */}
+            {activitiesIncidents.activities.map((act, index) => (
+              <React.Fragment key={index}>
+                {/* Fila título */}
+                <div className="grid grid-cols-12 border-b">
+                  <div className="col-span-2 flex items-center justify-center border-r text-xs font-medium text-slate-700">
+                    {index + 1}
+                  </div>
+                  <div className="col-span-10 p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-slate-700">
+                        Título de actividad
+                      </label>
+                      {activitiesIncidents.activities.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeActivityRow(index)}
+                          className="inline-flex items-center text-[10px] text-red-500 hover:text-red-700"
+                        >
+                          <Icon name="Trash2" size={12} className="mr-1" />
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={act.title}
+                      onChange={(e) =>
+                        handleActivityRowChange(
+                          index,
+                          "title",
+                          e.target.value
+                        )
+                      }
+                      className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                      placeholder="Título de la actividad"
+                    />
+                  </div>
+                </div>
+
+                {/* Fila detalle */}
+                <div className="grid grid-cols-12 border-b last:border-b-0">
+                  <div className="col-span-2 flex items-start justify-center border-r text-xs text-slate-700 pt-3">
+                    {`${index + 1}.1`}
+                  </div>
+                  <div className="col-span-10 p-3 space-y-1">
+                    <label className="text-xs font-medium text-slate-700">
+                      Detalle de la actividad
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={act.detail}
+                      onChange={(e) =>
+                        handleActivityRowChange(
+                          index,
+                          "detail",
+                          e.target.value
+                        )
+                      }
+                      className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
+                      placeholder="Describa el detalle de la actividad (pasos, ajustes realizados, observaciones, etc.)."
+                    />
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Incidentes (campo separado) */}
+          <div className="space-y-2 pt-4 border-t">
+            <label className="text-xs font-medium text-slate-700">
+              Incidentes
+            </label>
+            <textarea
+              rows={3}
+              value={activitiesIncidents.incidentsDescription}
+              onChange={(e) =>
+                handleActivitiesChange(
+                  "incidentsDescription",
+                  e.target.value
+                )
+              }
+              className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
+              placeholder="Registra cualquier incidente relevante (si no hubo, puede dejarlo en blanco)."
+            />
           </div>
         </section>
 
@@ -690,7 +820,10 @@ const ServiceReportCreation = () => {
                 type="text"
                 value={equipment.location}
                 onChange={(e) =>
-                  handleEquipmentChange("location", e.target.value)
+                  handleEquipmentChange(
+                    "location",
+                    e.target.value
+                  )
                 }
                 className="border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900/20"
                 placeholder="Ej: Planta norte, pozo 3, sala de bombas"
