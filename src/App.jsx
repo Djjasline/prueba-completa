@@ -1,10 +1,14 @@
+// src/App.jsx
 import React from "react";
 import Routes from "./Routes";
+import { ReportProvider } from "./context/ReportContext";
 
-function App() {
+const App = () => {
   return (
-    <Routes />
+    <ReportProvider>
+      <Routes />
+    </ReportProvider>
   );
-}
+};
 
 export default App;
