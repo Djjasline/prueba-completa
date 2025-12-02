@@ -52,7 +52,7 @@ export const generateReportPdf = (report) => {
   currentY += 4;
 
   // ===== 2. TABLA: INFORMACIÓN GENERAL DEL SERVICIO =====
-  // Aquí incluimos datos del CLIENTE y del TÉCNICO
+  // Aquí incluimos datos del cliente (empresa y contacto) y del técnico
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(12);
   pdf.text("Información general del servicio", marginLeft, currentY);
@@ -70,6 +70,9 @@ export const generateReportPdf = (report) => {
     head: [["Campo", "Detalle"]],
     body: [
       ["Cliente", general.client || "—"],
+      ["Contacto cliente", general.clientContact || "—"],
+      ["Correo cliente", general.clientEmail || "—"],
+      ["Cargo cliente", general.clientRole || "—"],
       ["Dirección", general.address || "—"],
       ["Referencia", general.reference || "—"],
       ["Técnico responsable", general.technicalPersonnel || "—"],
@@ -310,7 +313,7 @@ export const generateReportPdf = (report) => {
     }
   }
 
-  // NOMBRES bajo las firmas (tomados de la información general)
+  // NOMBRES bajo las firmas (cliente y técnico)
   const namesY = signaturesY + boxHeight + 6;
   pdf.setFontSize(9);
   pdf.setFont("helvetica", "normal");
@@ -321,9 +324,12 @@ export const generateReportPdf = (report) => {
       : "________________________";
 
   const clienteName =
-    general.client && String(general.client).trim() !== ""
+    (general.clientContact && String(general.clientContact).trim() !== ""
+      ? general.clientContact
+      : null) ||
+    (general.client && String(general.client).trim() !== ""
       ? general.client
-      : "________________________";
+      : "________________________");
 
   pdf.text(
     `Nombre técnico: ${tecnicoName}`,
