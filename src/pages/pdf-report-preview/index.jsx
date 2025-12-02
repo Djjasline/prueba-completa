@@ -5,10 +5,24 @@ import "jspdf-autotable";
 import Button from "../../components/ui/Button";
 import { useReports } from "../../context/ReportContext";
 
+// 👇 LOGO ASTAP (directo en src/)
+import astapLogo from "../../astap-logo.jpg"; 
+// Si tu archivo se llama distinto, por ejemplo "logo-astap.webp":
+// import astapLogo from "../../logo-astap.webp";
+
+// Helper para cargar el logo como Image (async)
+const loadLogoImage = () =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = astapLogo;
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+  });
+
 // ===============
 // Generador PDF
 // ===============
-export const generateReportPdf = (report) => {
+export const generateReportPdf = async (report) => {
   const pdf = new jsPDF("p", "mm", "a4");
 
   const safeReport = report || {};
@@ -17,7 +31,7 @@ export const generateReportPdf = (report) => {
   const activities = safeReport.activitiesIncidents || {};
   const materials = safeReport.materials || [];
   const afterTesting = safeReport.afterTesting || []; // pruebas después
-  const equipment = safeReport.equipment || {};       // datos del equipo
+  const equipment = safeReport.equipment || {}; // datos del equipo
   const signatures = safeReport.digitalSignatures || {};
 
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -26,6 +40,22 @@ export const generateReportPdf = (report) => {
   const marginRight = 14;
   const usableWidth = pageWidth - marginLeft - marginRight;
   let currentY = 15;
+
+  // ===== LOGO ASTAP EN ENCABEZADO (ESQUINA SUPERIOR DERECHA) =====
+  try {
+    const logoImg = await loadLogoImage();
+
+    // Ajusta ancho/alto a gusto (mm)
+    const logoWidth = 28;
+    const logoHeight = 28; // lo puse casi cuadrado porque tu logo es vertical
+    const logoX = pageWidth - marginRight - logoWidth;
+    const logoY = 8; // un poco abajo del borde superior
+
+    pdf.addImage(logoImg, "JPG", logoX, logoY, logoWidth, logoHeight);
+    // Si usas .webp y ves error, convierte el archivo a .jpg y actualiza el import.
+  } catch (e) {
+    console.warn("No se pudo cargar el logo ASTAP para el PDF:", e);
+  }
 
   // ===== 1. ENCABEZADO + DATOS CLAVE =====
   pdf.setFont("helvetica", "bold");
@@ -52,7 +82,6 @@ export const generateReportPdf = (report) => {
   currentY += 4;
 
   // ===== 2. TABLA: INFORMACIÓN GENERAL DEL SERVICIO =====
-  // Aquí incluimos datos del cliente (empresa y contacto) y del técnico
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(12);
   pdf.text("Información general del servicio", marginLeft, currentY);
@@ -287,7 +316,7 @@ export const generateReportPdf = (report) => {
     try {
       pdf.addImage(
         signatures.astap,
-        "PNG",
+        "JPG",
         marginLeft + 4,
         signaturesY + 8,
         boxWidth - 8,
@@ -302,7 +331,7 @@ export const generateReportPdf = (report) => {
     try {
       pdf.addImage(
         signatures.client,
-        "PNG",
+        "JPG",
         marginLeft + boxWidth + 10 + 4,
         signaturesY + 8,
         boxWidth - 8,
@@ -369,7 +398,7 @@ export const generateReportPdf = (report) => {
 const PDFReportPreview = () => {
   const { currentReport, saveCompleted } = useReports();
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!currentReport) {
       alert(
         "No hay datos de reporte cargados. Guarda primero el formulario."
@@ -377,7 +406,7 @@ const PDFReportPreview = () => {
       return;
     }
 
-    generateReportPdf(currentReport);
+    await generateReportPdf(currentReport);
     saveCompleted(currentReport);
   };
 
