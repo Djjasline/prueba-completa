@@ -717,48 +717,53 @@ const ServiceReportCreation = () => {
           </div>
 
           {/* Cuadro de imagen + botón (actividad seleccionada) */}
-          <div className="mt-4 flex justify-end">
-            <div className="w-52 h-44 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 flex flex-col items-center justify-center px-3 text-center">
-              <span className="text-sm font-semibold text-slate-700 mb-1">
-                Imagen de {actividadLabel}
-              </span>
-              <p className="text-[11px] text-slate-500 mb-2">
-                Esta imagen corresponde a la {actividadLabel} seleccionada
-                en la tabla.
-              </p>
+<div className="mt-4 flex justify-end">
+  <div className="w-56 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 flex flex-col items-center justify-start px-3 py-3 text-center">
+    <span className="text-sm font-semibold text-slate-700 mb-1">
+      Imagen de {actividadLabel}
+    </span>
+    <p className="text-[11px] text-slate-500 mb-2">
+      Esta imagen corresponde a la {actividadLabel} seleccionada en la tabla.
+    </p>
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1 text-[11px] rounded-md border border-slate-300 hover:bg-slate-100 inline-flex items-center"
-              >
-                <Icon name="Camera" size={12} className="mr-1" />
-                Tomar foto / Agregar imagen
-              </button>
+    <button
+      type="button"
+      onClick={() => fileInputRef.current?.click()}
+      className="px-3 py-1 text-[11px] rounded-md border border-slate-300 hover:bg-slate-100 inline-flex items-center"
+    >
+      <Icon name="Camera" size={12} className="mr-1" />
+      Tomar foto / Agregar imagen
+    </button>
 
-              {selectedActivity.imageData && (
-                <span className="mt-2 text-[10px] text-emerald-700">
-                  Imagen guardada para esta actividad.
-                </span>
-              )}
+    {selectedActivity.imageData && (
+      <div className="mt-2 w-full">
+        <img
+          src={selectedActivity.imageData}
+          alt={`Imagen de ${actividadLabel}`}
+          className="w-full h-24 object-contain border rounded-md bg-white"
+        />
+        <p className="mt-1 text-[10px] text-emerald-700">
+          Imagen guardada para esta actividad.
+        </p>
+      </div>
+    )}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleActivityImageUpload(safeIndex, file);
-                    e.target.value = "";
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </section>
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          handleActivityImageUpload(safeIndex, file);
+          e.target.value = "";
+        }
+      }}
+    />
+  </div>
+</div>
 
         {/* 4. Pruebas después del servicio */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
