@@ -5,7 +5,7 @@ import astapLogo from "../astap-logo.jpg"; // tu logo real
 
 // Colores corporativos (aprox)
 const BRAND_BLUE = { r: 4, g: 55, b: 94 }; // azul oscuro
-const HEADER_PASTEL = [217, 231, 242];     // celeste pastel para cabeceras
+const HEADER_PASTEL = [173, 216, 230];     // celeste pastel (puedes ajustar)
 const PAGE_WIDTH = 210;
 const MARGIN_X = 14;
 
@@ -92,7 +92,6 @@ export const generateReportPdf = async (report) => {
   const afterTesting = report.afterTesting || [];
   const activitiesBlock = report.activitiesIncidents || {};
   const activities = activitiesBlock.activities || [];
-  const incidentsDescription = activitiesBlock.incidentsDescription || "";
   const equipment = report.equipment || {};
 
   // 1) Encabezado principal
@@ -119,7 +118,10 @@ export const generateReportPdf = async (report) => {
       ["Correo del técnico", general.technicianEmail || "—"],
     ],
     styles: { fontSize: 8 },
-    headStyles: { fillColor: HEADER_PASTEL },
+    headStyles: {
+      fillColor: HEADER_PASTEL,
+      textColor: [0, 0, 0], // texto negro
+    },
     columnStyles: {
       0: { cellWidth: 60 },
       1: { cellWidth: 120 },
@@ -143,10 +145,13 @@ export const generateReportPdf = async (report) => {
 
     pdf.autoTable({
       startY: currentY,
-      head: [["#", "Parámetro", "Valor"]],
+      head: [["Ítem", "Parámetro", "Valor"]],
       body,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: HEADER_PASTEL },
+      headStyles: {
+        fillColor: HEADER_PASTEL,
+        textColor: [0, 0, 0],
+      },
       columnStyles: {
         0: { cellWidth: 10 },
         1: { cellWidth: 90 },
@@ -168,38 +173,38 @@ export const generateReportPdf = async (report) => {
       index + 1,
       act.title || "—",
       act.detail || "—",
+      "", // columna de imagen vacía (placeholder)
     ]);
 
     pdf.autoTable({
       startY: currentY,
-      head: [["Item", "Título de actividad", "Detalle de la actividad"]],
+      head: [
+        [
+          "Ítem",
+          "Título de actividad",
+          "Detalle de actividad",
+          "Imagen",
+        ],
+      ],
       body,
       styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: HEADER_PASTEL },
+      headStyles: {
+        fillColor: HEADER_PASTEL,
+        textColor: [0, 0, 0],
+      },
       columnStyles: {
         0: { cellWidth: 12 },
-        1: { cellWidth: 60 },
+        1: { cellWidth: 55 },
         2: { cellWidth: 88 },
+        3: { cellWidth: 25 },
       },
     });
 
-    currentY = pdf.lastAutoTable.finalY + 4;
+    currentY = pdf.lastAutoTable.finalY + 8;
   }
 
-  // Incidentes (texto libre)
-  if (incidentsDescription && incidentsDescription.trim() !== "") {
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.text("Incidentes:", MARGIN_X, currentY);
-    currentY += 4;
-
-    pdf.setFont("helvetica", "normal");
-    const incidentsLines = pdf.splitTextToSize(incidentsDescription, 180);
-    pdf.text(incidentsLines, MARGIN_X, currentY);
-    currentY += incidentsLines.length * 4 + 4;
-  } else {
-    currentY += 2;
-  }
+  // ⚠️ Ya NO mostramos el bloque de “Incidentes”
+  // (lo eliminaste en el diseño)
 
   // ================================
   // 4. Pruebas después del servicio
@@ -221,10 +226,13 @@ export const generateReportPdf = async (report) => {
 
     pdf.autoTable({
       startY: currentY,
-      head: [["#", "Parámetro", "Valor"]],
+      head: [["Ítem", "Parámetro", "Valor"]],
       body: bodyAfter,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: HEADER_PASTEL },
+      headStyles: {
+        fillColor: HEADER_PASTEL,
+        textColor: [0, 0, 0],
+      },
       columnStyles: {
         0: { cellWidth: 10 },
         1: { cellWidth: 90 },
@@ -261,7 +269,10 @@ export const generateReportPdf = async (report) => {
       ["VIN", equipment.vin || "—"],
     ],
     styles: { fontSize: 8 },
-    headStyles: { fillColor: HEADER_PASTEL },
+    headStyles: {
+      fillColor: HEADER_PASTEL,
+      textColor: [0, 0, 0],
+    },
     columnStyles: {
       0: { cellWidth: 60 },
       1: { cellWidth: 120 },
@@ -286,6 +297,7 @@ export const generateReportPdf = async (report) => {
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
 
+  // Recuadros de firmas
   pdf.rect(MARGIN_X, ySignature, 80, 30);
   pdf.text("Firma técnico ASTAP", MARGIN_X + 40, ySignature + 26, {
     align: "center",
@@ -296,6 +308,7 @@ export const generateReportPdf = async (report) => {
     align: "center",
   });
 
+  // Firmas como imágenes (si existen)
   if (report.digitalSignatures?.astap) {
     try {
       pdf.addImage(
