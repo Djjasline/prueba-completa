@@ -1,344 +1,267 @@
 // src/utils/generateReportPdf.js
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import astapLogo from "../astap-logo.jpg"; // tu logo real
+import astapLogo from "../astap-logo.jpg";
 
-// Colores corporativos (aprox)
-const BRAND_BLUE = { r: 4, g: 55, b: 94 }; // azul oscuro
-const HEADER_PASTEL = [173, 216, 230];     // celeste pastel (puedes ajustar)
-const PAGE_WIDTH = 210;
-const MARGIN_X = 14;
+// Generador de PDF para informes ASTAP
+export const generateReportPdf = (report) => {
+  const doc = new jsPDF("p", "mm", "a4");
+  const pageWidth = doc.internal.pageSize.getWidth();
 
-// ===============================
-// Encabezado principal con logo
-// ===============================
-const drawMainHeader = async (pdf, general) => {
-  // Barra azul superior
-  pdf.setFillColor(BRAND_BLUE.r, BRAND_BLUE.g, BRAND_BLUE.b);
-  pdf.rect(0, 0, PAGE_WIDTH, 22, "F");
+  const primaryDark = [0, 55, 98];      // azul oscuro ASTAP
+  const headerLight = [176, 216, 244];  // azul claro para cabeceras
 
-  // Título blanco centrado
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.text("ASTAP - Informe de Servicio", PAGE_WIDTH / 2, 12, {
-    align: "center",
-  });
+  const drawDocument = (logoImg) => {
+    let y = 15;
+    const gi = report?.generalInfo || {};
 
-  // Logo (si se puede cargar)
-  try {
-    if (astapLogo) {
-      const img = new Image();
-      img.src = astapLogo;
+    // ======= Encabezado =======
+    doc.setFillColor(...primaryDark);
+    doc.rect(0, 10, pageWidth, 10, "F");
 
-      await new Promise((resolve) => {
-        img.onload = () => {
-          pdf.addImage(img, "JPEG", PAGE_WIDTH - 14 - 25, 4, 25, 14);
-          resolve();
-        };
-        img.onerror = () => resolve();
-      });
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.text("ASTAP - Informe de Servicio", 14, 17);
+
+    // Logo (si existe)
+    if (logoImg) {
+      try {
+        doc.addImage(logoImg, "JPEG", pageWidth - 40, 12, 22, 22);
+      } catch (e) {
+        console.warn("No se pudo dibujar el logo ASTAP:", e);
+      }
     }
-  } catch (e) {
-    console.warn("No se pudo cargar el logo ASTAP:", e);
-  }
 
-  // Texto pequeño bajo la barra
-  pdf.setTextColor(0, 0, 0);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
 
-  const code = general?.internalCode || "—";
-  const client = general?.client || "—";
-  const date = general?.serviceDate || "—";
+    const summaryY = 25;
+    doc.text(`Código interno: ${gi.internalCode || "—"}`, 14, summaryY);
+    doc.text(`Cliente: ${gi.client || "—"}`, 14, summaryY + 5);
+    doc.text(
+      `Fecha de servicio: ${gi.serviceDate || "—"}`,
+      14,
+      summaryY + 10
+    );
+    y = summaryY + 18;
 
-  pdf.text(`Código interno: ${code}`, MARGIN_X, 26);
-  pdf.text(`Cliente: ${client}`, MARGIN_X, 31);
-  pdf.text(`Fecha de servicio: ${date}`, MARGIN_X, 36);
+    const addSectionTitle = (title) => {
+      doc.setFillColor(...primaryDark);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.rect(10, y, pageWidth - 20, 7, "F");
+      doc.text(title, 12, y + 4.8);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+      y += 10;
+    };
 
-  return 42; // pos Y donde empezamos el contenido
-};
+    const autoTable = (options) => {
+      doc.autoTable({
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: {
+          fillColor: headerLight,
+          textColor: 0,
+          fontStyle: "bold",
+          halign: "left",
+        },
+        ...options,
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    };
 
-// ==================================
-// Encabezado de sección (barra azul)
-// ==================================
-const drawSectionHeader = (pdf, text, y) => {
-  const height = 7;
-  pdf.setFillColor(BRAND_BLUE.r, BRAND_BLUE.g, BRAND_BLUE.b);
-  pdf.rect(MARGIN_X, y - height + 1, PAGE_WIDTH - 2 * MARGIN_X, height, "F");
-
-  pdf.setTextColor(255, 255, 255);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(11);
-  pdf.text(text, MARGIN_X + 2, y);
-
-  // Volver a texto negro
-  pdf.setTextColor(0, 0, 0);
-};
-
-// ==================================
-// Generador de PDF principal
-// ==================================
-export const generateReportPdf = async (report) => {
-  if (!report) {
-    alert("No hay datos del reporte para generar el PDF.");
-    return;
-  }
-
-  const pdf = new jsPDF("p", "mm", "a4");
-
-  const general = report.generalInfo || {};
-  const beforeTesting = report.beforeTesting || [];
-  const afterTesting = report.afterTesting || [];
-  const activitiesBlock = report.activitiesIncidents || {};
-  const activities = activitiesBlock.activities || [];
-  const equipment = report.equipment || {};
-
-  // 1) Encabezado principal
-  let currentY = await drawMainHeader(pdf, general);
-
-  // ================================
-  // 1. Información general servicio
-  // ================================
-  drawSectionHeader(pdf, "1. Información general del servicio", currentY);
-  currentY += 4;
-
-  pdf.autoTable({
-    startY: currentY,
-    head: [["Campo", "Detalle"]],
-    body: [
-      ["Cliente (empresa)", general.client || "—"],
-      ["Contacto cliente", general.clientContact || "—"],
-      ["Cargo del cliente", general.clientRole || "—"],
-      ["Correo del cliente", general.clientEmail || "—"],
-      ["Dirección", general.address || "—"],
-      ["Referencia", general.reference || "—"],
-      ["Técnico responsable", general.technicalPersonnel || "—"],
-      ["Teléfono del técnico", general.technicianPhone || "—"],
-      ["Correo del técnico", general.technicianEmail || "—"],
-    ],
-    styles: { fontSize: 8 },
-    headStyles: {
-      fillColor: HEADER_PASTEL,
-      textColor: [0, 0, 0], // texto negro
-    },
-    columnStyles: {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 120 },
-    },
-  });
-
-  currentY = pdf.lastAutoTable.finalY + 8;
-
-  // ================================
-  // 2. Pruebas antes del servicio
-  // ================================
-  if (beforeTesting.length > 0) {
-    drawSectionHeader(pdf, "2. Pruebas antes del servicio", currentY);
-    currentY += 4;
-
-    const body = beforeTesting.map((row, idx) => [
-      idx + 1,
-      row.parameter || "—",
-      row.value || "—",
-    ]);
-
-    pdf.autoTable({
-      startY: currentY,
-      head: [["Ítem", "Parámetro", "Valor"]],
-      body,
-      styles: { fontSize: 8 },
-      headStyles: {
-        fillColor: HEADER_PASTEL,
-        textColor: [0, 0, 0],
-      },
-      columnStyles: {
-        0: { cellWidth: 10 },
-        1: { cellWidth: 90 },
-        2: { cellWidth: 60 },
-      },
+    // ======= 1. Información general del servicio =======
+    addSectionTitle("1. Información general del servicio");
+    autoTable({
+      startY: y,
+      head: [["Campo", "Detalle"]],
+      body: [
+        ["Cliente (empresa)", gi.client || "—"],
+        ["Contacto cliente", gi.clientContact || "—"],
+        ["Cargo del cliente", gi.clientRole || "—"],
+        ["Correo del cliente", gi.clientEmail || "—"],
+        ["Dirección", gi.address || "—"],
+        ["Referencia", gi.reference || "—"],
+        ["Técnico responsable", gi.technicalPersonnel || "—"],
+        ["Teléfono del técnico", gi.technicianPhone || "—"],
+        ["Correo del técnico", gi.technicianEmail || "—"],
+      ],
+      columnStyles: { 0: { cellWidth: 60 } },
     });
 
-    currentY = pdf.lastAutoTable.finalY + 8;
-  }
+    // ======= 2. Pruebas antes del servicio =======
+    addSectionTitle("2. Pruebas antes del servicio");
+    const before = Array.isArray(report?.beforeTesting)
+      ? report.beforeTesting
+      : [];
+    autoTable({
+      startY: y,
+      head: [["Ítem", "Parámetro", "Valor"]],
+      body:
+        before.length > 0
+          ? before.map((row, idx) => [
+              String(idx + 1),
+              row.parameter || "",
+              row.value || "",
+            ])
+          : [["—", "—", "—"]],
+      columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 70 } },
+    });
 
-  // ================================
-  // 3. Actividades
-  // ================================
-  drawSectionHeader(pdf, "3. Actividades", currentY);
-  currentY += 4;
+    // ======= 3. Actividades (con imagen) =======
+    addSectionTitle("3. Actividades");
+    const activities =
+      report?.activitiesIncidents?.activities &&
+      report.activitiesIncidents.activities.length
+        ? report.activitiesIncidents.activities
+        : [];
 
-  if (activities.length > 0) {
-    const body = activities.map((act, index) => [
-      index + 1,
-      act.title || "—",
-      act.detail || "—",
-      "", // columna de imagen vacía (placeholder)
-    ]);
-
-    pdf.autoTable({
-      startY: currentY,
+    autoTable({
+      startY: y,
       head: [
-        [
-          "Ítem",
-          "Título de actividad",
-          "Detalle de actividad",
-          "Imagen",
-        ],
+        ["Ítem", "Título de actividad", "Detalle de actividad", "Imagen"],
       ],
-      body,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: {
-        fillColor: HEADER_PASTEL,
-        textColor: [0, 0, 0],
-      },
+      body:
+        activities.length > 0
+          ? activities.map((a, idx) => [
+              String(idx + 1),
+              a.title || "",
+              a.detail || "",
+              "", // la imagen se pinta en didDrawCell
+            ])
+          : [["—", "—", "—", ""]],
       columnStyles: {
         0: { cellWidth: 12 },
-        1: { cellWidth: 55 },
-        2: { cellWidth: 88 },
-        3: { cellWidth: 25 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 80 },
+        3: { cellWidth: 30 },
+      },
+      didDrawCell: (data) => {
+        if (
+          data.section === "body" &&
+          data.column.index === 3 && // columna Imagen
+          activities[data.row.index] &&
+          activities[data.row.index].imageData
+        ) {
+          const imgData = activities[data.row.index].imageData;
+          const padding = 1.5;
+          const w = data.cell.width - padding * 2;
+          const h = data.cell.height - padding * 2;
+          const x = data.cell.x + padding;
+          const yImg = data.cell.y + padding;
+          try {
+            doc.addImage(imgData, "PNG", x, yImg, w, h);
+          } catch (e) {
+            console.warn("No se pudo dibujar imagen de actividad:", e);
+          }
+        }
       },
     });
 
-    currentY = pdf.lastAutoTable.finalY + 8;
-  }
-
-  // ⚠️ Ya NO mostramos el bloque de “Incidentes”
-  // (lo eliminaste en el diseño)
-
-  // ================================
-  // 4. Pruebas después del servicio
-  // ================================
-  if (afterTesting.length > 0) {
-    if (currentY > 260) {
-      pdf.addPage();
-      currentY = 20;
-    }
-
-    drawSectionHeader(pdf, "4. Pruebas después del servicio", currentY);
-    currentY += 4;
-
-    const bodyAfter = afterTesting.map((row, idx) => [
-      idx + 1,
-      row.parameter || "—",
-      row.value || "—",
-    ]);
-
-    pdf.autoTable({
-      startY: currentY,
+    // ======= 4. Pruebas después del servicio =======
+    addSectionTitle("4. Pruebas después del servicio");
+    const after = Array.isArray(report?.afterTesting)
+      ? report.afterTesting
+      : [];
+    autoTable({
+      startY: y,
       head: [["Ítem", "Parámetro", "Valor"]],
-      body: bodyAfter,
-      styles: { fontSize: 8 },
-      headStyles: {
-        fillColor: HEADER_PASTEL,
-        textColor: [0, 0, 0],
-      },
-      columnStyles: {
-        0: { cellWidth: 10 },
-        1: { cellWidth: 90 },
-        2: { cellWidth: 60 },
-      },
+      body:
+        after.length > 0
+          ? after.map((row, idx) => [
+              String(idx + 1),
+              row.parameter || "",
+              row.value || "",
+            ])
+          : [["—", "—", "—"]],
+      columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 70 } },
     });
 
-    currentY = pdf.lastAutoTable.finalY + 8;
-  }
+    // ======= 5. Datos del equipo =======
+    addSectionTitle("5. Datos del equipo");
+    const eq = report?.equipment || {};
+    autoTable({
+      startY: y,
+      head: [["Campo", "Detalle"]],
+      body: [
+        ["Equipo / Unidad", eq.unit || "—"],
+        ["Marca", eq.brand || "—"],
+        ["Modelo", eq.model || "—"],
+        ["Serie", eq.serial || "—"],
+        ["Placa / Código interno", eq.plate || "—"],
+        ["Recorrido (km)", eq.mileageKm || "—"],
+        ["Tiempo de vida útil (horas)", eq.lifeHours || "—"],
+        ["Año de fabricación", eq.manufactureYear || "—"],
+        ["VIN", eq.vin || "—"],
+      ],
+      columnStyles: { 0: { cellWidth: 60 } },
+    });
 
-  // ================================
-  // 5. Datos del equipo
-  // ================================
-  if (currentY > 260) {
-    pdf.addPage();
-    currentY = 20;
-  }
+    // ======= 6. Firmas =======
+    addSectionTitle("6. Firmas");
+    const startY = y;
 
-  drawSectionHeader(pdf, "5. Datos del equipo", currentY);
-  currentY += 4;
+    const boxWidth = (pageWidth - 40) / 2;
+    const boxHeight = 35;
+    const leftX = 15;
+    const rightX = leftX + boxWidth + 10;
+    const boxY = startY + 2;
 
-  pdf.autoTable({
-    startY: currentY,
-    head: [["Campo", "Detalle"]],
-    body: [
-      ["Equipo / Unidad", equipment.unit || "—"],
-      ["Marca", equipment.brand || "—"],
-      ["Modelo", equipment.model || "—"],
-      ["Serie", equipment.serial || "—"],
-      ["Placa / Código interno", equipment.plate || "—"],
-      ["Recorrido (km)", equipment.mileageKm || "—"],
-      ["Tiempo de vida útil (horas)", equipment.lifeHours || "—"],
-      ["Año de fabricación", equipment.manufactureYear || "—"],
-      ["VIN", equipment.vin || "—"],
-    ],
-    styles: { fontSize: 8 },
-    headStyles: {
-      fillColor: HEADER_PASTEL,
-      textColor: [0, 0, 0],
-    },
-    columnStyles: {
-      0: { cellWidth: 60 },
-      1: { cellWidth: 120 },
-    },
-  });
+    // Marcos
+    doc.setDrawColor(0);
+    doc.rect(leftX, boxY, boxWidth, boxHeight);
+    doc.rect(rightX, boxY, boxWidth, boxHeight);
 
-  currentY = pdf.lastAutoTable.finalY + 12;
+    const sigAstap = report?.digitalSignatures?.astap;
+    const sigClient = report?.digitalSignatures?.client;
 
-  // ================================
-  // 6. Firmas
-  // ================================
-  if (currentY > 230) {
-    pdf.addPage();
-    currentY = 40;
-  }
-
-  drawSectionHeader(pdf, "6. Firmas", currentY);
-  currentY += 8;
-
-  const ySignature = currentY;
-
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
-
-  // Recuadros de firmas
-  pdf.rect(MARGIN_X, ySignature, 80, 30);
-  pdf.text("Firma técnico ASTAP", MARGIN_X + 40, ySignature + 26, {
-    align: "center",
-  });
-
-  pdf.rect(110, ySignature, 80, 30);
-  pdf.text("Firma cliente", 110 + 40, ySignature + 26, {
-    align: "center",
-  });
-
-  // Firmas como imágenes (si existen)
-  if (report.digitalSignatures?.astap) {
-    try {
-      pdf.addImage(
-        report.digitalSignatures.astap,
-        "PNG",
-        MARGIN_X + 5,
-        ySignature + 5,
-        70,
-        20
-      );
-    } catch (e) {
-      console.warn("No se pudo incrustar firma ASTAP:", e);
+    if (sigAstap) {
+      try {
+        doc.addImage(
+          sigAstap,
+          "PNG",
+          leftX + 2,
+          boxY + 2,
+          boxWidth - 4,
+          boxHeight - 6
+        );
+      } catch (e) {
+        console.warn("No se pudo dibujar firma ASTAP:", e);
+      }
     }
-  }
-
-  if (report.digitalSignatures?.client) {
-    try {
-      pdf.addImage(
-        report.digitalSignatures.client,
-        "PNG",
-        110 + 5,
-        ySignature + 5,
-        70,
-        20
-      );
-    } catch (e) {
-      console.warn("No se pudo incrustar firma cliente:", e);
+    if (sigClient) {
+      try {
+        doc.addImage(
+          sigClient,
+          "PNG",
+          rightX + 2,
+          boxY + 2,
+          boxWidth - 4,
+          boxHeight - 6
+        );
+      } catch (e) {
+        console.warn("No se pudo dibujar firma cliente:", e);
+      }
     }
-  }
 
-  const code = general.internalCode || "sin-codigo";
-  pdf.save(`ASTAP_Reporte_${code}.pdf`);
+    // Textos de las firmas (negro y centrado)
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.text("Firma técnico ASTAP", leftX + boxWidth / 2, boxY + boxHeight + 6, {
+      align: "center",
+    });
+    doc.text("Firma cliente", rightX + boxWidth / 2, boxY + boxHeight + 6, {
+      align: "center",
+    });
+
+    // Guardar PDF
+    const code = gi.internalCode || "sin-codigo";
+    doc.save(`ASTAP_Reporte_${code}.pdf`);
+  };
+
+  // Cargamos el logo como <img> para poder pasarlo a jsPDF
+  const img = new Image();
+  img.src = astapLogo;
+  img.onload = () => drawDocument(img);
+  img.onerror = () => drawDocument(null);
 };
