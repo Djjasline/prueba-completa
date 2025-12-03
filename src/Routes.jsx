@@ -1,3 +1,4 @@
+// src/Routes.jsx
 import React from "react";
 import { BrowserRouter, Routes as RouterRoutes, Route } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
@@ -16,21 +17,31 @@ const Routes = () => {
       <ErrorBoundary>
         <ScrollToTop />
         <RouterRoutes>
-          {/* 1° Al abrir la app: listado */}
+          {/* ✅ Pantalla inicial: listado de informes */}
           <Route path="/" element={<ReportHistoryManagement />} />
+
+          {/* Alias extra por si hay enlaces viejos */}
+          <Route
+            path="/report-history-management"
+            element={<ReportHistoryManagement />}
+          />
+
+          {/* Flujo del informe */}
           <Route
             path="/service-report-creation"
             element={<ServiceReportCreation />}
-          />
-          <Route
-            path="/email-integration-interface"
-            element={<EmailIntegrationInterface />}
           />
           <Route
             path="/digital-signature-capture"
             element={<DigitalSignatureCapture />}
           />
           <Route path="/pdf-report-preview" element={<PDFReportPreview />} />
+          <Route
+            path="/email-integration-interface"
+            element={<EmailIntegrationInterface />}
+          />
+
+          {/* 404 */}
           <Route path="*" element={<NotFound />} />
         </RouterRoutes>
       </ErrorBoundary>
