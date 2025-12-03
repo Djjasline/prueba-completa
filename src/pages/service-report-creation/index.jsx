@@ -309,148 +309,283 @@ const ServiceReportCreation = () => {
 
         {/* 1. Información general del servicio */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
-          {/* ... (toda la sección 1 igual que la tienes) */}
-          {/* No la recorto para que el archivo quede completo en tu copia */}
-          {/* === Pegado completo omitido aquí por espacio, pero en tu código ya está OK === */}
+          <h2 className="text-lg font-semibold text-slate-900">
+            1. Información general del servicio
+          </h2>
+          <p className="text-xs text-slate-500">
+            Datos del cliente, contacto, servicio y técnico responsable.
+          </p>
+
+          <div className="space-y-4">
+            {/* Cliente */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-700">
+                Cliente (empresa) *
+              </label>
+              <input
+                type="text"
+                value={generalInfo.client}
+                onChange={(e) =>
+                  handleGeneralChange("client", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Nombre de la empresa cliente"
+              />
+            </div>
+
+            {/* Contacto + cargo del cliente */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Contacto del cliente
+                </label>
+                <input
+                  type="text"
+                  value={generalInfo.clientContact}
+                  onChange={(e) =>
+                    handleGeneralChange("clientContact", e.target.value)
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Nombre de la persona de contacto"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Cargo del cliente
+                </label>
+                <input
+                  type="text"
+                  value={generalInfo.clientRole}
+                  onChange={(e) =>
+                    handleGeneralChange("clientRole", e.target.value)
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Cargo o rol de la persona de contacto"
+                />
+              </div>
+            </div>
+
+            {/* Correo del cliente */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-700">
+                Correo del cliente
+              </label>
+              <input
+                type="email"
+                value={generalInfo.clientEmail}
+                onChange={(e) =>
+                  handleGeneralChange("clientEmail", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="correo@cliente.com"
+              />
+            </div>
+
+            {/* Fecha de servicio + Código interno */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Fecha de servicio
+                </label>
+                <input
+                  type="date"
+                  value={generalInfo.serviceDate}
+                  onChange={(e) =>
+                    handleGeneralChange("serviceDate", e.target.value)
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Código interno
+                </label>
+                <input
+                  type="text"
+                  value={generalInfo.internalCode}
+                  onChange={(e) =>
+                    handleGeneralChange("internalCode", e.target.value)
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Identificador interno del servicio"
+                />
+              </div>
+            </div>
+
+            {/* Dirección + referencia */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-700">
+                Dirección
+              </label>
+              <input
+                type="text"
+                value={generalInfo.address}
+                onChange={(e) =>
+                  handleGeneralChange("address", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Dirección donde se realiza el servicio"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-700">
+                Referencia
+              </label>
+              <textarea
+                rows={2}
+                value={generalInfo.reference}
+                onChange={(e) =>
+                  handleGeneralChange("reference", e.target.value)
+                }
+                className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20 resize-y"
+                placeholder="Puntos de referencia para llegar al sitio"
+              />
+            </div>
+
+            {/* Datos del técnico */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Técnico responsable
+                </label>
+                <input
+                  type="text"
+                  value={generalInfo.technicalPersonnel}
+                  onChange={(e) =>
+                    handleGeneralChange(
+                      "technicalPersonnel",
+                      e.target.value
+                    )
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="Nombre del técnico ASTAP"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Teléfono del técnico
+                </label>
+                <input
+                  type="tel"
+                  value={generalInfo.technicianPhone}
+                  onChange={(e) =>
+                    handleGeneralChange(
+                      "technicianPhone",
+                      e.target.value
+                    )
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="+593 ..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700">
+                  Correo del técnico
+                </label>
+                <input
+                  type="email"
+                  value={generalInfo.technicianEmail}
+                  onChange={(e) =>
+                    handleGeneralChange(
+                      "technicianEmail",
+                      e.target.value
+                    )
+                  }
+                  className="border rounded-md px-3 py-2 text-sm w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                  placeholder="tecnico@astap.com"
+                />
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* 2. Pruebas antes del servicio */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
-          {/* ... sección 2 igual que la tuya ... */}
-        </section>
-
-        {/* 3. Actividades */}
-        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                3. Actividades
+                2. Pruebas antes del servicio
               </h2>
               <p className="text-xs text-slate-500">
-                Registre cada actividad realizada. Puede agregar tantas
-                como sea necesario.
+                Registre los parámetros medidos antes de iniciar el servicio.
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
               iconName="Plus"
-              onClick={addActivityRow}
+              onClick={addBeforeRow}
             >
-              Agregar actividad
+              Agregar fila
             </Button>
           </div>
 
-          {/* Tabla de actividades */}
-          {/* ... toda la tabla de actividades exactamente como la pusiste ... */}
-
-          {/* Incidentes */}
-          {/* ... textarea de incidentes igual ... */}
-
-          {/* Cuadro de imagen + botón (actividad seleccionada) */}
-          <div className="mt-4 flex justify-end">
-            <div className="w-56 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50 flex flex-col items-center justify-start px-3 py-3 text-center">
-              <span className="text-sm font-semibold text-slate-700 mb-1">
-                Imagen de {actividadLabel}
-              </span>
-              <p className="text-[11px] text-slate-500 mb-2">
-                Esta imagen corresponde a la {actividadLabel} seleccionada en la
-                tabla.
-              </p>
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1 text-[11px] rounded-md border border-slate-300 hover:bg-slate-100 inline-flex items-center"
-              >
-                <Icon name="Camera" size={12} className="mr-1" />
-                Tomar foto / Agregar imagen
-              </button>
-
-              {selectedActivity.imageData && (
-                <div className="mt-2 w-full">
-                  <img
-                    src={selectedActivity.imageData}
-                    alt={`Imagen de ${actividadLabel}`}
-                    className="w-full h-24 object-contain border rounded-md bg-white"
-                  />
-                  <p className="mt-1 text-[10px] text-emerald-700">
-                    Imagen guardada para esta actividad.
-                  </p>
-                </div>
-              )}
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleActivityImageUpload(safeIndex, file);
-                    e.target.value = "";
-                  }
-                }}
-              />
+          <div className="border rounded-lg overflow-hidden">
+            <div className="grid grid-cols-12 bg-slate-100 border-b text-xs font-semibold text-slate-700">
+              <div className="col-span-2 flex items-center justify-center border-r py-2">
+                Ítem
+              </div>
+              <div className="col-span-5 flex items-center justify-center border-r py-2">
+                Parámetro
+              </div>
+              <div className="col-span-5 flex items-center justify-center py-2">
+                Valor
+              </div>
             </div>
+
+            {beforeTesting.map((row, index) => (
+              <div
+                key={index}
+                className="grid grid-cols-12 border-b last:border-b-0 bg-white"
+              >
+                <div className="col-span-2 flex items-center justify-center border-r text-xs text-slate-700">
+                  {index + 1}
+                </div>
+                <div className="col-span-5 border-r p-2">
+                  <input
+                    type="text"
+                    value={row.parameter}
+                    onChange={(e) =>
+                      handleBeforeChange(
+                        index,
+                        "parameter",
+                        e.target.value
+                      )
+                    }
+                    className="border rounded-md px-2 py-1 text-xs w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                    placeholder="Parámetro medido"
+                  />
+                </div>
+                <div className="col-span-5 p-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={row.value}
+                    onChange={(e) =>
+                      handleBeforeChange(index, "value", e.target.value)
+                    }
+                    className="border rounded-md px-2 py-1 text-xs w-full outline-none focus:ring-2 focus:ring-slate-900/20"
+                    placeholder="Valor medido"
+                  />
+                  {beforeTesting.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeBeforeRow(index)}
+                      className="text-[10px] text-red-500 hover:text-red-700 inline-flex items-center"
+                    >
+                      <Icon name="Trash2" size={12} className="mr-1" />
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-        </section> {/* 👈👈 CIERRE DE LA SECCIÓN 3, ESTO ES LO QUE FALTABA */}
+        </section>
 
-        {/* 4. Pruebas después del servicio */}
+        {/* 3. Actividades */}
         <section className="bg-white rounded-xl shadow border p-6 space-y-4">
-          {/* ... toda la sección 4 igual ... */}
-        </section>
-
-        {/* 5. Datos del equipo */}
-        <section className="bg-white rounded-xl shadow border p-6 space-y-4">
-          {/* ... sección 5 igual ... */}
-        </section>
-
-        {/* Barra inferior de acciones */}
-        <section className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              iconName="ArrowLeft"
-              onClick={handleBack}
-            >
-              Volver
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              iconName="List"
-              onClick={handleGoToList}
-            >
-              Ver listado de informes
-            </Button>
-
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="inline-flex items-center text-xs text-slate-600 hover:text-slate-900"
-            >
-              <Icon name="Save" size={14} className="mr-1" />
-              Guardar borrador
-            </button>
-          </div>
-
-          <Button
-            size="sm"
-            iconName="ArrowRight"
-            iconPosition="right"
-            onClick={handleNextToSignature}
-          >
-            Continuar en Firma Digital
-          </Button>
-        </section>
-      </div>
-    </div>
-  );
-};
-
-export default ServiceReportCreation;
